@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 /* ═══════════════════════════════════════════════════════════════
    RENDORA — MÓDULO PLANEJAMENTO v16
@@ -346,7 +346,21 @@ export default function PlanejamentoRendora() {
   var _unlockR = useState(""); var unlockR = _unlockR[0]; var setUnlockR = _unlockR[1];
   var _viewM = useState(null); var viewModal = _viewM[0]; var setViewModal = _viewM[1];
   var _ordemM = useState(false); var ordemModal = _ordemM[0]; var setOrdemModal = _ordemM[1];
-  var _ordemS = useState(null); var ordemSetor = _ordemS[0]; var setOrdemSetor = _ordemS[1];
+  var _ordemS = useState(null);
+
+  // Carregar dados do localStorage na montagem
+  useEffect(function() {
+    try {
+      var savedCards = localStorage.getItem("rendora_planejamento_cards");
+      if (savedCards) setCards(JSON.parse(savedCards));
+    } catch(e) { console.log("Erro ao carregar planejamento", e); }
+  }, []);
+
+  // Salvar cards no localStorage quando mudam
+  useEffect(function() {
+    try { localStorage.setItem("rendora_planejamento_cards", JSON.stringify(cards)); } catch(e) {}
+  }, [cards]);
+ var ordemSetor = _ordemS[0]; var setOrdemSetor = _ordemS[1];
 
   /* ── Clientes filtrados por unidade ── */
   var clientesFiltrados = useMemo(function () {
