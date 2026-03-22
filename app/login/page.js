@@ -38,7 +38,7 @@ export default function LoginPage() {
                     const userId = authData.user.id;
                     const { data: emp, error: empError } = await supabase.from("empresas").insert({ nome: empresa }).select().single();
                     if (empError || !emp) { setErro("Erro ao criar empresa: " + (empError ? empError.message : "sem dados")); setCarregando(false); return; }
-                    const { error: perfError } = await supabase.from("perfis").insert({ id: userId, empresa_id: emp.id, nome: nome, email: email, perfil_tipo: "admin" });
+                    const { error: perfError } = await supabase.from("perfis").insert({ id: userId, empresa_id: emp.id, nome: nome, email: email, perfil: "admin" });
                     if (perfError) { setErro("Erro ao criar perfil: " + perfError.message); setCarregando(false); return; }
                     router.push("/");
           } catch (err) {
