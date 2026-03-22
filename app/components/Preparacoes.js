@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 /* ═══════════════════════════════════════════════════════════════
    RENDORA — MÓDULO PREPARAÇÕES v15
@@ -334,7 +334,35 @@ export default function PreparacoesRendora() {
   var _recF = useState(null); var recForm = _recF[0]; var setRecForm = _recF[1];
   var _ingM = useState(false); var ingModal = _ingM[0]; var setIngModal = _ingM[1];
   var _kpiM = useState(null); var kpiModal = _kpiM[0]; var setKpiModal = _kpiM[1];
-  var _ingF = useState(null); var ingForm = _ingF[0]; var setIngForm = _ingF[1];
+  var _ingF = useState(null);
+
+  // Carregar dados do localStorage na montagem
+  useEffect(function() {
+    try {
+      var savedCats = localStorage.getItem("rendora_categorias");
+      var savedIngs = localStorage.getItem("rendora_ingredientes");
+      var savedRecs = localStorage.getItem("rendora_receitas");
+      if (savedCats) setCategorias(JSON.parse(savedCats));
+      if (savedIngs) setIngredientes(JSON.parse(savedIngs));
+      if (savedRecs) setReceitas(JSON.parse(savedRecs));
+    } catch(e) { console.log("Erro ao carregar dados locais", e); }
+  }, []);
+
+  // Salvar categorias no localStorage quando mudam
+  useEffect(function() {
+    try { localStorage.setItem("rendora_categorias", JSON.stringify(categorias)); } catch(e) {}
+  }, [categorias]);
+
+  // Salvar ingredientes no localStorage quando mudam
+  useEffect(function() {
+    try { localStorage.setItem("rendora_ingredientes", JSON.stringify(ingredientes)); } catch(e) {}
+  }, [ingredientes]);
+
+  // Salvar receitas no localStorage quando mudam
+  useEffect(function() {
+    try { localStorage.setItem("rendora_receitas", JSON.stringify(receitas)); } catch(e) {}
+  }, [receitas]);
+ var ingForm = _ingF[0]; var setIngForm = _ingF[1];
 
   /* Filtros */
   var receitasFiltradas = useMemo(function () {
