@@ -215,17 +215,18 @@ function ModPreparacoes(props) {
   var _m = useState(false); var modal = _m[0]; var setModal = _m[1];
   var _n = useState(""); var nome = _n[0]; var setNome = _n[1];
   var _f = useState(""); var fcc = _f[0]; var setFcc = _f[1];
+  var _st = useState("cozinha_producao"); var setor = _st[0]; var setSetor = _st[1];
   var _s = useState(false); var salvando = _s[0]; var setSalvando = _s[1];
   var _e = useState(""); var erro = _e[0]; var setErro = _e[1];
 
   function salvar() {
     if (!nome.trim()) { setErro("Preencha o nome"); return; }
     setSalvando(true); setErro("");
-    supabase.from("preparacoes").insert({ empresa_id: props.empresaId, nome: nome.trim(), fcc: parseFloat(fcc) || 1 })
+    supabase.from("preparacoes").insert({ empresa_id: props.empresaId, nome: nome.trim(), fcc: parseFloat(fcc) || 1, setor: setor })
       .then(function(res) {
         setSalvando(false);
         if (res.error) { setErro(res.error.message); return; }
-        setNome(""); setFcc(""); setModal(false);
+        setNome(""); setFcc(""); setSetor("cozinha_producao"); setModal(false);
         props.recarregar();
       });
   }
@@ -245,7 +246,7 @@ function ModPreparacoes(props) {
               <div key={p.id} style={{ background:C.surface, borderRadius:10, padding:"14px 18px", border:"1px solid "+C.border, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div>
                   <div style={{ fontWeight:700, color:C.white, fontSize:14 }}>{p.nome}</div>
-                  <div style={{ fontSize:11, color:C.textMuted }}>FCC: {p.fcc || "-"}</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>FCC: {p.fcc || "-"} • {p.setor || ""}</div>
                 </div>
                 <button style={sBtnDanger} onClick={function(){
                   supabase.from("preparacoes").delete().eq("id", p.id).then(function(){ props.recarregar(); });
@@ -261,6 +262,14 @@ function ModPreparacoes(props) {
           <input style={sInput} placeholder="Ex: Arroz cozido" value={nome} onChange={function(e){setNome(e.target.value);}} />
           <label style={{ fontSize:12, color:C.textMuted, marginBottom:4, display:"block" }}>FCC (Fator de Correcao)</label>
           <input style={sInput} type="number" step="0.01" placeholder="1.00" value={fcc} onChange={function(e){setFcc(e.target.value);}} />
+          <label style={{ fontSize:12, color:C.textMuted, marginBottom:4, display:"block" }}>Setor</label>
+          <select style={sInput} value={setor} onChange={function(e){setSetor(e.target.value);}}>
+            <option value="cozinha_producao">Cozinha Producao</option>
+            <option value="saladas">Saladas</option>
+            <option value="sucos">Sucos</option>
+            <option value="pastelaria">Pastelaria</option>
+            <option value="panificacao">Panificacao</option>
+          </select>
           {erro && <div style={{ color:C.danger, fontSize:12, marginBottom:8 }}>{erro}</div>}
           <div style={{ display:"flex", gap:8, marginTop:8 }}>
             <button style={sBtnOutline} onClick={function(){setModal(false);}}>Cancelar</button>
