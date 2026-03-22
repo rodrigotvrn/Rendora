@@ -35,7 +35,7 @@ function Modal(props) {
 function Vazio(props) {
   return (
     <div style={{ textAlign:"center", padding:60, color:C.textDim }}>
-      <div style={{ fontSize:48, marginBottom:16 }}>{props.icon || "ð­"}</div>
+      <div style={{ fontSize:48, marginBottom:16 }}>{props.icon || "📭"}</div>
       <div style={{ fontSize:16, fontWeight:700, color:C.textMuted, marginBottom:8 }}>{props.titulo}</div>
       <div style={{ fontSize:13, marginBottom:20 }}>{props.msg}</div>
       {props.children}
@@ -53,12 +53,12 @@ function ModDashboard(props) {
       <div style={{ fontSize:12, color:C.textMuted, marginBottom:20 }}>Visao geral da operacao</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
         {[
-          { label:"RECEITAS", valor:String(np), icon:"ð", cor:C.accent },
-          { label:"INGREDIENTES", valor:String(ni), icon:"ð¥", cor:C.green },
-          { label:"CLIENTES ATIVOS", valor:String(nc), icon:"ð¢", cor:C.gold },
-          { label:"CARDAPIOS/MES", valor:"0", icon:"ð", cor:C.warning },
-          { label:"CUSTO MEDIO", valor:"R$ 0,00", icon:"ð°", cor:C.green },
-          { label:"COMENSAIS/DIA", valor:"0", icon:"ð¥", cor:C.accent }
+          { label:"RECEITAS", valor:String(np), icon:"📋", cor:C.accent },
+          { label:"INGREDIENTES", valor:String(ni), icon:"🥕", cor:C.green },
+          { label:"CLIENTES ATIVOS", valor:String(nc), icon:"🏢", cor:C.gold },
+          { label:"CARDAPIOS/MES", valor:"0", icon:"📅", cor:C.warning },
+          { label:"CUSTO MEDIO", valor:"R$ 0,00", icon:"💰", cor:C.green },
+          { label:"COMENSAIS/DIA", valor:"0", icon:"👥", cor:C.accent }
         ].map(function(k){
           return (
             <div key={k.label} style={{ background:k.cor+"08", borderRadius:14, padding:"16px 18px", border:"1px solid "+k.cor+"22" }}>
@@ -71,7 +71,7 @@ function ModDashboard(props) {
           );
         })}
       </div>
-      <Vazio icon="ð" titulo="Bem-vindo ao Rendora!" msg="Comece cadastrando seus clientes, receitas e ingredientes para usar o sistema." />
+      <Vazio icon="🚀" titulo="Bem-vindo ao Rendora!" msg="Comece cadastrando seus clientes, receitas e ingredientes para usar o sistema." />
     </div>
   );
 }
@@ -102,7 +102,7 @@ function ModClientes(props) {
         <button style={sBtnGreen} onClick={function(){setModal(true); setErro("");}}>+ Novo Cliente</button>
       </div>
       {props.dados.length === 0 ? (
-        <Vazio icon="ð¢" titulo="Nenhum cliente cadastrado" msg="Cadastre seu primeiro cliente para comecar." />
+        <Vazio icon="🏢" titulo="Nenhum cliente cadastrado" msg="Cadastre seu primeiro cliente para comecar." />
       ) : (
         <div style={{ display:"grid", gap:8 }}>
           {props.dados.map(function(c){
@@ -110,7 +110,7 @@ function ModClientes(props) {
               <div key={c.id} style={{ background:C.surface, borderRadius:10, padding:"14px 18px", border:"1px solid "+C.border, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div>
                   <div style={{ fontWeight:700, color:C.white, fontSize:14 }}>{c.nome}</div>
-                  <div style={{ fontSize:11, color:C.textMuted }}>{c.tipo} {c.ativo ? "â¢ Ativo" : "â¢ Inativo"}</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>{c.tipo} {c.ativo ? "• Ativo" : "• Inativo"}</div>
                 </div>
                 <button style={sBtnDanger} onClick={function(){
                   supabase.from("clientes").delete().eq("id", c.id).then(function(){ props.recarregar(); });
@@ -170,7 +170,7 @@ function ModIngredientes(props) {
         <button style={sBtnGreen} onClick={function(){setModal(true); setErro("");}}>+ Novo Ingrediente</button>
       </div>
       {props.dados.length === 0 ? (
-        <Vazio icon="ð¥" titulo="Nenhum ingrediente cadastrado" msg="Cadastre ingredientes para montar suas receitas." />
+        <Vazio icon="🥕" titulo="Nenhum ingrediente cadastrado" msg="Cadastre ingredientes para montar suas receitas." />
       ) : (
         <div style={{ display:"grid", gap:8 }}>
           {props.dados.map(function(i){
@@ -178,7 +178,7 @@ function ModIngredientes(props) {
               <div key={i.id} style={{ background:C.surface, borderRadius:10, padding:"14px 18px", border:"1px solid "+C.border, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div>
                   <div style={{ fontWeight:700, color:C.white, fontSize:14 }}>{i.nome}</div>
-                  <div style={{ fontSize:11, color:C.textMuted }}>{i.unidade} â¢ R$ {(i.custo_medio||0).toFixed(2)}</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>{i.unidade} • R$ {(i.custo_medio||0).toFixed(2)}</div>
                 </div>
                 <button style={sBtnDanger} onClick={function(){
                   supabase.from("ingredientes").delete().eq("id", i.id).then(function(){ props.recarregar(); });
@@ -240,7 +240,7 @@ function ModPreparacoes(props) {
         <button style={sBtnGreen} onClick={function(){setModal(true); setErro("");}}>+ Nova Receita</button>
       </div>
       {props.dados.length === 0 ? (
-        <Vazio icon="ð" titulo="Nenhuma receita cadastrada" msg="Cadastre suas fichas tecnicas e receitas." />
+        <Vazio icon="📋" titulo="Nenhuma receita cadastrada" msg="Cadastre suas fichas tecnicas e receitas." />
       ) : (
         <div style={{ display:"grid", gap:8 }}>
           {props.dados.map(function(p){
@@ -248,7 +248,7 @@ function ModPreparacoes(props) {
               <div key={p.id} style={{ background:C.surface, borderRadius:10, padding:"14px 18px", border:"1px solid "+C.border, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div>
                   <div style={{ fontWeight:700, color:C.white, fontSize:14 }}>{p.nome}</div>
-                  <div style={{ fontSize:11, color:C.textMuted }}>FCC: {p.fcc || "-"} â¢ {p.setor || ""}</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>FCC: {p.fcc || "-"} • {p.setor || ""}</div>
                 </div>
                 <button style={sBtnDanger} onClick={function(){
                   supabase.from("preparacoes").delete().eq("id", p.id).then(function(){ props.recarregar(); });
@@ -290,7 +290,7 @@ function ModEstoque(props) {
         <div><div style={{ fontSize:20, fontWeight:800, color:C.white }}>Estoque</div></div>
         <div style={{ display:"flex", gap:8 }}><button style={sBtnOutline}>Entrada NF</button><button style={sBtnGreen}>+ Novo Item</button></div>
       </div>
-      <Vazio icon="ð¦" titulo="Estoque vazio" msg="Cadastre itens no estoque para controlar suas compras." />
+      <Vazio icon="📦" titulo="Estoque vazio" msg="Cadastre itens no estoque para controlar suas compras." />
     </div>
   );
 }
@@ -302,7 +302,7 @@ function ModCompras() {
         <div><div style={{ fontSize:20, fontWeight:800, color:C.white }}>Compras</div></div>
         <button style={sBtnGreen}>+ Nova Solicitacao</button>
       </div>
-      <Vazio icon="ð" titulo="Nenhum pedido de compra" msg="Os pedidos de compra aparecerao aqui." />
+      <Vazio icon="🛒" titulo="Nenhum pedido de compra" msg="Os pedidos de compra aparecerao aqui." />
     </div>
   );
 }
@@ -314,7 +314,7 @@ function ModPlanejamento() {
         <div><div style={{ fontSize:20, fontWeight:800, color:C.white }}>Planejamento de Cardapios</div></div>
         <button style={sBtnGreen}>+ Novo Cardapio</button>
       </div>
-      <Vazio icon="ð" titulo="Nenhum cardapio planejado" msg="Crie cardapios mensais para seus clientes." />
+      <Vazio icon="📅" titulo="Nenhum cardapio planejado" msg="Crie cardapios mensais para seus clientes." />
     </div>
   );
 }
@@ -323,7 +323,7 @@ function ModIntegracao() {
   return (
     <div>
       <div style={{ fontSize:20, fontWeight:800, color:C.white, marginBottom:16 }}>Integracao Compras x Estoque</div>
-      <Vazio icon="ð" titulo="Nenhuma integracao ativa" msg="Configure a integracao apos cadastrar clientes e cardapios." />
+      <Vazio icon="🔗" titulo="Nenhuma integracao ativa" msg="Configure a integracao apos cadastrar clientes e cardapios." />
     </div>
   );
 }
@@ -332,21 +332,21 @@ function ModBaixa() {
   return (
     <div>
       <div style={{ fontSize:20, fontWeight:800, color:C.white, marginBottom:16 }}>Baixa de Producao</div>
-      <Vazio icon="â" titulo="Nenhuma producao pendente" msg="As producoes aparecerao aqui quando houver cardapios aprovados." />
+      <Vazio icon="✅" titulo="Nenhuma producao pendente" msg="As producoes aparecerao aqui quando houver cardapios aprovados." />
     </div>
   );
 }
 
 var NAV = [
-  { id:"dash", nome:"Dashboard", icon:"ð" },
-  { id:"clie", nome:"Clientes", icon:"ð¢" },
-  { id:"ingr", nome:"Ingredientes", icon:"ð¥" },
-  { id:"prep", nome:"Preparacoes", icon:"ð" },
-  { id:"plan", nome:"Planejamento", icon:"ð" },
-  { id:"comp", nome:"Compras", icon:"ð" },
-  { id:"esto", nome:"Estoque", icon:"ð¦" },
-  { id:"intg", nome:"Integracao", icon:"ð" },
-  { id:"baix", nome:"Baixa Prod.", icon:"â" }
+  { id:"dash", nome:"Dashboard", icon:"📊" },
+  { id:"clie", nome:"Clientes", icon:"🏢" },
+  { id:"ingr", nome:"Ingredientes", icon:"🥕" },
+  { id:"prep", nome:"Preparacoes", icon:"📋" },
+  { id:"plan", nome:"Planejamento", icon:"📅" },
+  { id:"comp", nome:"Compras", icon:"🛒" },
+  { id:"esto", nome:"Estoque", icon:"📦" },
+  { id:"intg", nome:"Integracao", icon:"🔗" },
+  { id:"baix", nome:"Baixa Prod.", icon:"✅" }
 ];
 
 export default function RendoraApp() {
