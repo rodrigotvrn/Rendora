@@ -243,7 +243,7 @@ function ModPreparacoes({ empresaId }) {
   const carregarIngredientes = useCallback(async () => {
     const { data } = await supabase
       .from('ingredientes')
-      .select('id, nome, codigo, unidade_padrao, grupo_id')
+      .select('id, nome, codigo, unidade, grupo_id')
       .eq('empresa_id', empresaId)
       .eq('ativo', true)
       .order('nome');
@@ -298,7 +298,7 @@ function ModPreparacoes({ empresaId }) {
   const carregarItens = async (prepId) => {
     const { data } = await supabase
       .from('preparacao_itens')
-      .select('*, ingredientes(nome, codigo, unidade_padrao)')
+      .select('*, ingredientes(nome, codigo, unidade)')
       .eq('preparacao_id', prepId)
       .order('ordem');
     setFichaItens(data || []);
@@ -416,7 +416,7 @@ function ModPreparacoes({ empresaId }) {
                 style={{width:'100%',padding:8,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:4}}>
                 <option value="">Selecione...</option>
                 {ingredientesDisponiveis.map(ing => (
-                  <option key={ing.id} value={ing.id}>{ing.codigo} - {ing.nome} ({ing.unidade_padrao})</option>
+                  <option key={ing.id} value={ing.id}>{ing.codigo} - {ing.nome} ({ing.unidade})</option>
                 ))}
               </select>
             </div>
