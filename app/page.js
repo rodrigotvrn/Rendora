@@ -253,10 +253,11 @@ function ModPreparacoes({ empresaId }) {
   useEffect(() => { carregarPreparacoes(); carregarIngredientes(); }, [carregarPreparacoes, carregarIngredientes]);
 
   const gerarCodigo = async () => {
-    const { data } = await supabase.from('preparacoes').select('codigo').eq('empresa_id', empresaId).order('codigo', { ascending: false }).limit(1);
-    if (data && data.length > 0) {
+    const { data } = await supabase.from('preparacoes').select('codigo').eq('empresa_id', empresaId).not('codigo', 'is', null).order('codigo', { ascending: false }).limit(1);
+    if (data && data.length > 0 && data[0].codigo) {
       const last = data[0].codigo;
-      const num = parseInt(last.replace('PREP-','')) + 1;
+      const match = last.match(/\d+/);
+      const num = match ? parseInt(match[0]) + 1 : 1;
       return 'PREP-' + String(num).padStart(4,'0');
     }
     return 'PREP-0001';
