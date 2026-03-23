@@ -797,7 +797,7 @@ function ModCardapios({ empresaId }) {
   );
 }
 
-function 
+
 /* ========== ORDENS DE PRODUCAO ========== */
 function ModOrdensProducao({ empresaId }) {
   const [ordens, setOrdens] = useState([]);
@@ -806,296 +806,158 @@ function ModOrdensProducao({ empresaId }) {
   const [showForm, setShowForm] = useState(false);
   const [showDetail, setShowDetail] = useState(null);
   const [detailItens, setDetailItens] = useState([]);
-  const [form, setForm] = useState({ data: '', cardapio_id: '' });
-  const [msg, setMsg] = useState('');
-
-  const turnoLabels = {
-    cafe_manha: 'Cafe da Manha', almoco: 'Almoco', lanche: 'Lanche',
-    jantar: 'Jantar', ceia: 'Ceia', cafe: 'Cafe', evento: 'Evento'
-  };
-  const statusColors = { rascunho: '#f59e0b', confirmada: '#10b981', executada: '#6366f1' };
-
+  const [form, setForm] = useState({ data: "", cardapio_id: "" });
+  const [msg, setMsg] = useState("");
+  const turnoLabels = { cafe_manha: "Cafe da Manha", almoco: "Almoco", lanche: "Lanche", jantar: "Jantar", ceia: "Ceia" };
+  const statusColors = { rascunho: "#f59e0b", confirmada: "#10b981", executada: "#6366f1" };
   useEffect(() => { if (empresaId) carregarDados(); }, [empresaId]);
-
   const carregarDados = async () => {
     setLoading(true);
-    const { data: ords } = await supabase.from('ordens_producao')
-      .select('*, cardapios:cardapio_id(nome), ordens_producao_itens(id)')
-      .eq('empresa_id', empresaId).order('data', { ascending: false });
+    const { data: ords } = await supabase.from("ordens_producao").select("*, cardapios:cardapio_id(nome), ordens_producao_itens(id)").eq("empresa_id", empresaId).order("data", { ascending: false });
     setOrdens(ords || []);
-    const { data: cards } = await supabase.from('cardapios')
-      .select('id, nome, data_inicio, data_fim, comensais_planejados')
-      .eq('empresa_id', empresaId).eq('ativo', true).order('created_at', { ascending: false });
+    const { data: cards } = await supabase.from("cardapios").select("id, nome, data_inicio, data_fim, comensais_planejados").eq("empresa_id", empresaId).eq("ativo", true).order("created_at", { ascending: false });
     setCardapios(cards || []);
     setLoading(false);
   };
-
   const carregarItens = async (ordemId) => {
-    const { data } = await supabase.from('ordens_producao_itens')
-      .select('*, preparacoes:preparacao_id(nome, codigo, setor)')
-      .eq('ordem_id', ordemId).order('turno').order('created_at');
+    const { data } = await supabase.from("ordens_producao_itens").select("*, preparacoes:preparacao_id(nome, codigo, setor)").eq("ordem_id", ordemId).order("turno").order("created_at");
     setDetailItens(data || []);
   };
-
   const gerarOrdem = async () => {
-    if (!form.data) { setMsg('Informe a data'); return; }
-    setMsg('');
+    if (!form.data) { setMsg("Informe a data"); return; }
+    setMsg("");
     const insertData = { empresa_id: empresaId, data: form.data };
     if (form.cardapio_id) {
       insertData.cardapio_id = form.cardapio_id;
-      // Find the selected cardapio to get comensais
       const cardapio = cardapios.find(c => c.id === form.cardapio_id);
-      // Get slots from the cardapio for this date
-      const { data: slots } = await supabase.from('cardapio_slots')
-        .select('*, preparacoes:preparacao_id(nome, codigo, setor)')
-        .eq('cardapio_id', form.cardapio_id);
-      
-      const { data: ordem, error } = await supabase.from('ordens_producao')
-        .insert(insertData).select().single();
-      if (error) { setMsg('Erro: ' + error.message); return; }
-
-      // Generate items from slots
+      const { data: slots } = await supabase.from("cardapio_slots").select("*, preparacoes:preparacao_id(nome, codigo, setor)").eq("cardapio_id", form.cardapio_id);
+      const { data: ordem, error } = await supabase.from("ordens_producao").insert(insertData).select().single();
+      if (error) { setMsg("Erro: " + error.message); return; }
       if (slots && slots.length > 0) {
         const itens = slots.filter(s => s.preparacao_id).map(slot => ({
-          ordem_id: ordem.id,
-          preparacao_id: slot.preparacao_id,
-          turno: slot.turno || 'almoco',
-          setor: slot.preparacoes?.setor || null,
+          ordem_id: ordem.id, preparacao_id: slot.preparacao_id,
+          turno: slot.turno || "almoco", setor: slot.preparacoes?.setor || null,
           comensais: slot.comensais || cardapio?.comensais_planejados || 0,
           pcp: slot.pcp || 0,
           qbt: ((slot.comensais || cardapio?.comensais_planejados || 0) * (slot.pcp || 0)).toFixed(3) * 1,
           cardapio_slot_id: slot.id
         }));
-        if (itens.length > 0) {
-          await supabase.from('ordens_producao_itens').insert(itens);
-        }
+        if (itens.length > 0) { await supabase.from("ordens_producao_itens").insert(itens); }
       }
-      setMsg('Ordem gerada com ' + (slots?.filter(s => s.preparacao_id).length || 0) + ' itens do cardapio!');
+      setMsg("Ordem gerada com " + (slots?.filter(s => s.preparacao_id).length || 0) + " itens!");
     } else {
-      const { error } = await supabase.from('ordens_producao').insert(insertData);
-      if (error) { setMsg('Erro: ' + error.message); return; }
-      setMsg('Ordem criada (vazia)!');
+      const { error } = await supabase.from("ordens_producao").insert(insertData);
+      if (error) { setMsg("Erro: " + error.message); return; }
+      setMsg("Ordem criada (vazia)!");
     }
-    setShowForm(false);
-    setForm({ data: '', cardapio_id: '' });
-    carregarDados();
+    setShowForm(false); setForm({ data: "", cardapio_id: "" }); carregarDados();
   };
-
   const atualizarStatus = async (ordemId, novoStatus) => {
-    await supabase.from('ordens_producao').update({ status: novoStatus }).eq('id', ordemId);
+    await supabase.from("ordens_producao").update({ status: novoStatus }).eq("id", ordemId);
     carregarDados();
     if (showDetail?.id === ordemId) setShowDetail({ ...showDetail, status: novoStatus });
   };
-
-  const abrirDetalhe = (ordem) => {
-    setShowDetail(ordem);
-    carregarItens(ordem.id);
-    setShowForm(false);
-  };
-
+  const abrirDetalhe = (ordem) => { setShowDetail(ordem); carregarItens(ordem.id); setShowForm(false); };
   const atualizarItem = async (itemId, field, value) => {
     const updates = { [field]: value };
-    // Recalculate QBT if comensais or pcp changes
     const item = detailItens.find(i => i.id === itemId);
     if (item) {
-      const comensais = field === 'comensais' ? Number(value) : item.comensais;
-      const pcp = field === 'pcp' ? Number(value) : item.pcp;
-      updates.qbt = (comensais * pcp).toFixed(3) * 1;
+      const c = field === "comensais" ? Number(value) : item.comensais;
+      const p = field === "pcp" ? Number(value) : item.pcp;
+      updates.qbt = (c * p).toFixed(3) * 1;
     }
-    await supabase.from('ordens_producao_itens').update(updates).eq('id', itemId);
+    await supabase.from("ordens_producao_itens").update(updates).eq("id", itemId);
     carregarItens(showDetail.id);
   };
-
   const removerItem = async (itemId) => {
-    await supabase.from('ordens_producao_itens').delete().eq('id', itemId);
+    await supabase.from("ordens_producao_itens").delete().eq("id", itemId);
     carregarItens(showDetail.id);
   };
-
-  if (loading) return <div style={{padding:40,color:'#888'}}>Carregando ordens...</div>;
-
-  // Detail view
+  if (loading) return (<div style={{padding:40,color:"#888"}}>Carregando ordens...</div>);
   if (showDetail) {
     const itensByTurno = {};
-    detailItens.forEach(item => {
-      const t = item.turno || 'sem_turno';
-      if (!itensByTurno[t]) itensByTurno[t] = [];
-      itensByTurno[t].push(item);
-    });
-
+    detailItens.forEach(item => { const t = item.turno || "sem_turno"; if (!itensByTurno[t]) itensByTurno[t] = []; itensByTurno[t].push(item); });
     return (
       <div style={{padding:20}}>
-        <button onClick={() => { setShowDetail(null); carregarDados(); }}
-          style={{padding:'8px 16px',background:'#4361ee',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',marginBottom:16}}>
-          Voltar
-        </button>
-        <h2 style={{color:'#e94560',margin:'0 0 8px'}}>
-          Ordem de Producao - {showDetail.data}
-        </h2>
-        <p style={{color:'#888',fontSize:13,margin:'0 0 8px'}}>
-          {showDetail.cardapios?.nome ? 'Cardapio: ' + showDetail.cardapios.nome + ' | ' : ''}
-          Status: <span style={{background:statusColors[showDetail.status]||'#666',color:'#fff',padding:'2px 8px',borderRadius:4,fontSize:11}}>
-            {showDetail.status}
-          </span>
-        </p>
-        <div style={{display:'flex',gap:8,marginBottom:16}}>
-          {showDetail.status === 'rascunho' && (
-            <button onClick={() => atualizarStatus(showDetail.id, 'confirmada')}
-              style={{padding:'6px 12px',background:'#10b981',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>
-              Confirmar
-            </button>
-          )}
-          {showDetail.status === 'confirmada' && (
-            <button onClick={() => atualizarStatus(showDetail.id, 'executada')}
-              style={{padding:'6px 12px',background:'#6366f1',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>
-              Marcar Executada
-            </button>
-          )}
+        <button onClick={() => { setShowDetail(null); carregarDados(); }} style={{padding:"8px 16px",background:"#4361ee",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",marginBottom:16}}>Voltar</button>
+        <h2 style={{color:"#e94560",margin:"0 0 8px"}}>Ordem de Producao - {showDetail.data}</h2>
+        <p style={{color:"#888",fontSize:13,margin:"0 0 8px"}}>{showDetail.cardapios?.nome ? "Cardapio: " + showDetail.cardapios.nome + " | " : ""}Status: <span style={{background:statusColors[showDetail.status]||"#666",color:"#fff",padding:"2px 8px",borderRadius:4,fontSize:11}}>{showDetail.status}</span></p>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          {showDetail.status === "rascunho" && (<button onClick={() => atualizarStatus(showDetail.id, "confirmada")} style={{padding:"6px 12px",background:"#10b981",color:"#fff",border:"none",borderRadius:4,cursor:"pointer",fontSize:12}}>Confirmar</button>)}
+          {showDetail.status === "confirmada" && (<button onClick={() => atualizarStatus(showDetail.id, "executada")} style={{padding:"6px 12px",background:"#6366f1",color:"#fff",border:"none",borderRadius:4,cursor:"pointer",fontSize:12}}>Marcar Executada</button>)}
         </div>
-
-        {Object.keys(itensByTurno).length === 0 ? (
-          <p style={{color:'#888'}}>Nenhum item nesta ordem.</p>
-        ) : (
+        {Object.keys(itensByTurno).length === 0 ? (<p style={{color:"#888"}}>Nenhum item nesta ordem.</p>) : (
           Object.entries(itensByTurno).map(([turno, itens]) => (
             <div key={turno} style={{marginBottom:16}}>
-              <h3 style={{color:'#4ecca3',fontSize:14,margin:'0 0 8px',textTransform:'capitalize'}}>
-                {turnoLabels[turno] || turno}
-              </h3>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <thead>
-                  <tr style={{background:'#16213e'}}>
-                    <th style={{padding:6,textAlign:'left',color:'#4ecca3'}}>Preparacao</th>
-                    <th style={{padding:6,textAlign:'left',color:'#4ecca3'}}>Setor</th>
-                    <th style={{padding:6,textAlign:'center',color:'#4ecca3'}}>Comensais</th>
-                    <th style={{padding:6,textAlign:'center',color:'#4ecca3'}}>PCP (kg)</th>
-                    <th style={{padding:6,textAlign:'center',color:'#4ecca3'}}>QBT (kg)</th>
-                    <th style={{padding:6,textAlign:'center',color:'#4ecca3'}}>Obs</th>
-                    <th style={{padding:6,textAlign:'center',color:'#4ecca3'}}>Acoes</th>
+              <h3 style={{color:"#4ecca3",fontSize:14,margin:"0 0 8px",textTransform:"capitalize"}}>{turnoLabels[turno] || turno}</h3>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{background:"#16213e"}}><th style={{padding:6,textAlign:"left",color:"#4ecca3"}}>Preparacao</th><th style={{padding:6,textAlign:"left",color:"#4ecca3"}}>Setor</th><th style={{padding:6,textAlign:"center",color:"#4ecca3"}}>Comensais</th><th style={{padding:6,textAlign:"center",color:"#4ecca3"}}>PCP</th><th style={{padding:6,textAlign:"center",color:"#4ecca3"}}>QBT</th><th style={{padding:6,textAlign:"center",color:"#4ecca3"}}>Obs</th><th style={{padding:6,textAlign:"center",color:"#4ecca3"}}>Acoes</th></tr></thead>
+                <tbody>{itens.map(item => (
+                  <tr key={item.id} style={{borderBottom:"1px solid #1a1a2e"}}>
+                    <td style={{padding:6}}>{item.preparacoes?.codigo} - {item.preparacoes?.nome || "Sem prep"}</td>
+                    <td style={{padding:6,textTransform:"capitalize"}}>{item.setor || "-"}</td>
+                    <td style={{padding:6,textAlign:"center"}}><input type="number" value={item.comensais||0} onChange={e => atualizarItem(item.id,"comensais",e.target.value)} style={{width:60,padding:4,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:4,textAlign:"center"}} /></td>
+                    <td style={{padding:6,textAlign:"center"}}><input type="number" value={item.pcp||0} step="0.001" onChange={e => atualizarItem(item.id,"pcp",e.target.value)} style={{width:70,padding:4,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:4,textAlign:"center"}} /></td>
+                    <td style={{padding:6,textAlign:"center",fontWeight:"bold",color:"#4ecca3"}}>{((item.comensais||0)*(item.pcp||0)).toFixed(3)}</td>
+                    <td style={{padding:6,textAlign:"center"}}><input type="text" value={item.observacao||""} onChange={e => atualizarItem(item.id,"observacao",e.target.value)} placeholder="..." style={{width:80,padding:4,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:4,fontSize:11}} /></td>
+                    <td style={{padding:6,textAlign:"center"}}><button onClick={() => removerItem(item.id)} style={{background:"#e94560",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:11}}>x</button></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {itens.map(item => (
-                    <tr key={item.id} style={{borderBottom:'1px solid #1a1a2e'}}>
-                      <td style={{padding:6}}>{item.preparacoes?.codigo} - {item.preparacoes?.nome || 'Sem preparacao'}</td>
-                      <td style={{padding:6,textTransform:'capitalize'}}>{item.setor || '-'}</td>
-                      <td style={{padding:6,textAlign:'center'}}>
-                        <input type="number" value={item.comensais || 0}
-                          onChange={e => atualizarItem(item.id, 'comensais', e.target.value)}
-                          style={{width:60,padding:4,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4,textAlign:'center'}} />
-                      </td>
-                      <td style={{padding:6,textAlign:'center'}}>
-                        <input type="number" value={item.pcp || 0} step="0.001"
-                          onChange={e => atualizarItem(item.id, 'pcp', e.target.value)}
-                          style={{width:70,padding:4,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4,textAlign:'center'}} />
-                      </td>
-                      <td style={{padding:6,textAlign:'center',fontWeight:'bold',color:'#4ecca3'}}>
-                        {((item.comensais || 0) * (item.pcp || 0)).toFixed(3)}
-                      </td>
-                      <td style={{padding:6,textAlign:'center'}}>
-                        <input type="text" value={item.observacao || ''}
-                          onChange={e => atualizarItem(item.id, 'observacao', e.target.value)}
-                          placeholder="..."
-                          style={{width:80,padding:4,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4,fontSize:11}} />
-                      </td>
-                      <td style={{padding:6,textAlign:'center'}}>
-                        <button onClick={() => removerItem(item.id)}
-                          style={{background:'#e94560',color:'#fff',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontSize:11}}>
-                          x
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                ))}</tbody>
               </table>
             </div>
           ))
         )}
-        <p style={{color:'#888',fontSize:11,marginTop:12}}>Total de itens: {detailItens.length}</p>
+        <p style={{color:"#888",fontSize:11,marginTop:12}}>Total: {detailItens.length} itens</p>
       </div>
     );
   }
-
-  // Form view
   if (showForm) {
     return (
       <div style={{padding:20}}>
-        <button onClick={() => setShowForm(false)}
-          style={{padding:'8px 16px',background:'#4361ee',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',marginBottom:16}}>
-          Voltar
-        </button>
-        <h2 style={{color:'#e94560',margin:'0 0 16px'}}>Gerar Ordem de Producao</h2>
-        {msg && <p style={{color: msg.startsWith('Erro') ? '#e94560' : '#4ecca3', fontSize:13,marginBottom:8}}>{msg}</p>}
+        <button onClick={() => setShowForm(false)} style={{padding:"8px 16px",background:"#4361ee",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",marginBottom:16}}>Voltar</button>
+        <h2 style={{color:"#e94560",margin:"0 0 16px"}}>Gerar Ordem de Producao</h2>
+        {msg && <p style={{color:msg.startsWith("Erro")?"#e94560":"#4ecca3",fontSize:13,marginBottom:8}}>{msg}</p>}
         <div style={{marginBottom:12}}>
-          <label style={{fontSize:13,color:'#666',display:'block',marginBottom:4}}>Data da Producao *</label>
-          <input type="date" value={form.data} onChange={e => setForm({...form, data: e.target.value})}
-            style={{width:250,padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:8}} />
+          <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Data da Producao *</label>
+          <input type="date" value={form.data} onChange={e => setForm({...form, data: e.target.value})} style={{width:250,padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8}} />
         </div>
         <div style={{marginBottom:12}}>
-          <label style={{fontSize:13,color:'#666',display:'block',marginBottom:4}}>Cardapio (opcional - gera itens automaticamente)</label>
-          <select value={form.cardapio_id} onChange={e => setForm({...form, cardapio_id: e.target.value})}
-            style={{width:400,padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:8}}>
+          <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Cardapio (opcional)</label>
+          <select value={form.cardapio_id} onChange={e => setForm({...form, cardapio_id: e.target.value})} style={{width:400,padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8}}>
             <option value="">Sem cardapio (ordem vazia)</option>
-            {cardapios.map(c => (
-              <option key={c.id} value={c.id}>{c.nome} ({c.data_inicio} a {c.data_fim})</option>
-            ))}
+            {cardapios.map(c => (<option key={c.id} value={c.id}>{c.nome} ({c.data_inicio} a {c.data_fim})</option>))}
           </select>
         </div>
-        <button onClick={gerarOrdem}
-          style={{padding:'10px 24px',background:'#e94560',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:'bold'}}>
-          Gerar Ordem
-        </button>
+        <button onClick={gerarOrdem} style={{padding:"10px 24px",background:"#e94560",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:"bold"}}>Gerar Ordem</button>
       </div>
     );
   }
-
-  // List view
   return (
     <div style={{padding:20}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <h2 style={{color:'#e94560',margin:0}}>Ordens de Producao</h2>
-        <button onClick={() => { setShowForm(true); setMsg(''); }}
-          style={{padding:'10px 20px',background:'#e94560',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:'bold'}}>
-          + Gerar Ordem
-        </button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 style={{color:"#e94560",margin:0}}>Ordens de Producao</h2>
+        <button onClick={() => { setShowForm(true); setMsg(""); }} style={{padding:"10px 20px",background:"#e94560",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:"bold"}}>+ Gerar Ordem</button>
       </div>
-      <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-        <thead>
-          <tr style={{background:'#16213e'}}>
-            <th style={{padding:8,textAlign:'left',color:'#4ecca3'}}>Data</th>
-            <th style={{padding:8,textAlign:'left',color:'#4ecca3'}}>Cardapio</th>
-            <th style={{padding:8,textAlign:'center',color:'#4ecca3'}}>Itens</th>
-            <th style={{padding:8,textAlign:'center',color:'#4ecca3'}}>Status</th>
-            <th style={{padding:8,textAlign:'center',color:'#4ecca3'}}>Acoes</th>
-          </tr>
-        </thead>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{background:"#16213e"}}><th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>Data</th><th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>Cardapio</th><th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Itens</th><th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Status</th><th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Acoes</th></tr></thead>
         <tbody>
-          {ordens.length === 0 ? (
-            <tr><td colSpan={5} style={{textAlign:'center',padding:20,color:'#888'}}>Nenhuma ordem encontrada.</td></tr>
-          ) : ordens.map(o => (
-            <tr key={o.id} style={{borderBottom:'1px solid #1a1a2e'}}>
+          {ordens.length === 0 ? (<tr><td colSpan={5} style={{textAlign:"center",padding:20,color:"#888"}}>Nenhuma ordem encontrada.</td></tr>) : ordens.map(o => (
+            <tr key={o.id} style={{borderBottom:"1px solid #1a1a2e"}}>
               <td style={{padding:8}}>{o.data}</td>
-              <td style={{padding:8}}>{o.cardapios?.nome || '-'}</td>
-              <td style={{padding:8,textAlign:'center'}}>{o.ordens_producao_itens?.length || 0}</td>
-              <td style={{padding:8,textAlign:'center'}}>
-                <span style={{background:statusColors[o.status]||'#666',color:'#fff',padding:'2px 10px',borderRadius:4,fontSize:11}}>
-                  {o.status}
-                </span>
-              </td>
-              <td style={{padding:8,textAlign:'center'}}>
-                <button onClick={() => abrirDetalhe(o)}
-                  style={{padding:'4px 12px',background:'#4361ee',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:11,marginRight:4}}>
-                  Detalhar
-                </button>
-              </td>
+              <td style={{padding:8}}>{o.cardapios?.nome || "-"}</td>
+              <td style={{padding:8,textAlign:"center"}}>{o.ordens_producao_itens?.length || 0}</td>
+              <td style={{padding:8,textAlign:"center"}}><span style={{background:statusColors[o.status]||"#666",color:"#fff",padding:"2px 10px",borderRadius:4,fontSize:11}}>{o.status}</span></td>
+              <td style={{padding:8,textAlign:"center"}}><button onClick={() => abrirDetalhe(o)} style={{padding:"4px 12px",background:"#4361ee",color:"#fff",border:"none",borderRadius:4,cursor:"pointer",fontSize:11}}>Detalhar</button></td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p style={{color:'#888',fontSize:11,marginTop:8}}>Total: {ordens.length} ordens</p>
+      <p style={{color:"#888",fontSize:11,marginTop:8}}>Total: {ordens.length} ordens</p>
     </div>
   );
 }
 
-ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:'#e94560'}}>{title}</h2><p style={{color:'#aaa'}}>Modulo em construcao...</p></div>);}
+function ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:'#e94560'}}>{title}</h2><p style={{color:'#aaa'}}>Modulo em construcao...</p></div>);}
 
 export default function Home() {
   const router = useRouter();
