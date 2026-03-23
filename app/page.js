@@ -232,7 +232,7 @@ function ModPreparacoes({ empresaId }) {
     setLoading(true);
     const { data, error } = await supabase
       .from('preparacoes')
-      .select('*, preparacao_itens(id, ingrediente_id, pcl, pcb, fc, fcc, pcp_padrao, custo_provisorio, ordem, ingredientes:ingrediente_id(nome, codigo, unidade_padrao))')
+      .select('*, preparacao_itens(id, ingrediente_id, pcl, pcb, fc, fcc, pcp_padrao, custo_provisorio, ordem)')
       .eq('empresa_id', empresaId)
       .eq('ativo', true)
       .order('codigo', { ascending: true });
@@ -298,7 +298,7 @@ function ModPreparacoes({ empresaId }) {
   const carregarItens = async (prepId) => {
     const { data } = await supabase
       .from('preparacao_itens')
-      .select('*, ingredientes:ingrediente_id(nome, codigo, unidade_padrao)')
+      .select('*, ingredientes(nome, codigo, unidade_padrao)')
       .eq('preparacao_id', prepId)
       .order('ordem');
     setFichaItens(data || []);
