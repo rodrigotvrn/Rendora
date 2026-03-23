@@ -550,6 +550,253 @@ function ModPreparacoes({ empresaId }) {
   );
 }
 
+
+/* ========== MOD CARDAPIOS (Planejamento Semanal) ========== */
+function ModCardapios({ empresaId }) {
+  const [cardapios, setCardapios] = useState([]);
+  const [preparacoesDisp, setPreparacoesDisp] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [showGrade, setShowGrade] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ nome:'', data_inicio:'', data_fim:'', comensais_planejados:50 });
+  const [slots, setSlots] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const turnos = ['cafe_manha','almoco','lanche','jantar','ceia'];
+  const turnoLabels = { cafe_manha:'Cafe da Manha', almoco:'Almoco', lanche:'Lanche', jantar:'Jantar', ceia:'Ceia' };
+
+  const carregarCardapios = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('cardapios').select('*, cardapio_slots(id, preparacao_id, turno, data, pcp, comensais, preparacoes:preparacao_id(nome,codigo))').eq('empresa_id', empresaId).order('created_at', { ascending: false });
+    if (data) setCardapios(data);
+    setLoading(false);
+  }, [empresaId]);
+
+  const carregarPreparacoes = useCallback(async () => {
+    const { data } = await supabase.from('preparacoes').select('id, nome, codigo').eq('empresa_id', empresaId).eq('ativo', true).order('nome');
+    if (data) setPreparacoesDisp(data);
+  }, [empresaId]);
+
+  useEffect(() => { carregarCardapios(); carregarPreparacoes(); }, [carregarCardapios, carregarPreparacoes]);
+
+  const salvarCardapio = async () => {
+    setSaving(true); setMsg('');
+    try {
+      if (editId) {
+        const { error } = await supabase.from('cardapios').update({ nome: form.nome, data_inicio: form.data_inicio || null, data_fim: form.data_fim || null, comensais_planejados: form.comensais_planejados }).eq('id', editId);
+        if (error) throw error;
+        setMsg('Cardapio atualizado!');
+      } else {
+        const { data, error } = await supabase.from('cardapios').insert({ empresa_id: empresaId, nome: form.nome, data_inicio: form.data_inicio || null, data_fim: form.data_fim || null, comensais_planejados: form.comensais_planejados, status: 'rascunho', ativo: true }).select().single();
+        if (error) throw error;
+        setMsg('Cardapio criado!');
+        setEditId(data.id);
+      }
+      carregarCardapios();
+    } catch(e) { setMsg('Erro: ' + e.message); }
+    setSaving(false);
+  };
+
+  // Grade functions
+  const abrirGrade = (cardapio) => {
+    setShowGrade(cardapio);
+    carregarSlots(cardapio.id);
+    setShowForm(false);
+  };
+
+  const carregarSlots = async (cardapioId) => {
+    const { data } = await supabase.from('cardapio_slots').select('*, preparacoes:preparacao_id(nome, codigo)').eq('cardapio_id', cardapioId).order('data').order('turno');
+    setSlots(data || []);
+  };
+
+  const adicionarSlot = async (data, turno) => {
+    if (!showGrade) return;
+    const { error } = await supabase.from('cardapio_slots').insert({ cardapio_id: showGrade.id, data, turno, pcp: 0, comensais: showGrade.comensais_planejados || 50 });
+    if (!error) carregarSlots(showGrade.id);
+  };
+
+  const atualizarSlot = async (slotId, field, value) => {
+    await supabase.from('cardapio_slots').update({ [field]: value }).eq('id', slotId);
+    carregarSlots(showGrade.id);
+  };
+
+  const removerSlot = async (slotId) => {
+    await supabase.from('cardapio_slots').delete().eq('id', slotId);
+    carregarSlots(showGrade.id);
+  };
+
+  const novoCardapio = () => {
+    setForm({ nome:'', data_inicio:'', data_fim:'', comensais_planejados:50 });
+    setEditId(null); setShowForm(true); setShowGrade(null); setMsg('');
+  };
+
+  const editarCardapio = (c) => {
+    setForm({ nome: c.nome || '', data_inicio: c.data_inicio || '', data_fim: c.data_fim || '', comensais_planejados: c.comensais_planejados || 50 });
+    setEditId(c.id); setShowForm(true); setShowGrade(null); setMsg('');
+  };
+
+  // Get days between data_inicio and data_fim
+  const getDias = () => {
+    if (!showGrade?.data_inicio || !showGrade?.data_fim) return [];
+    const dias = [];
+    const start = new Date(showGrade.data_inicio + 'T12:00:00');
+    const end = new Date(showGrade.data_fim + 'T12:00:00');
+    const current = new Date(start);
+    while (current <= end) {
+      dias.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return dias;
+  };
+
+  const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab'];
+  const formatDia = (d) => {
+    const dt = new Date(d + 'T12:00:00');
+    return diasSemana[dt.getDay()] + ' ' + d.split('-')[2] + '/' + d.split('-')[1];
+  };
+
+  // === GRADE VIEW ===
+  if (showGrade) {
+    const dias = getDias();
+    return (
+      <div style={{padding:24}}>
+        <button onClick={() => { setShowGrade(null); setSlots([]); }} style={{marginBottom:16,padding:'6px 16px',background:'#555',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Voltar</button>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <div>
+            <h2 style={{color:'#e94560',margin:0}}>{showGrade.nome || 'Cardapio'}</h2>
+            <p style={{color:'#aaa',margin:'4px 0'}}>
+              {showGrade.data_inicio} a {showGrade.data_fim} | Comensais: {showGrade.comensais_planejados} | Status: {showGrade.status}
+            </p>
+          </div>
+          <button onClick={() => editarCardapio(showGrade)} style={{padding:'6px 16px',background:'#0f3460',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Editar</button>
+        </div>
+
+        {dias.length === 0 ? (
+          <p style={{color:'#f0a500'}}>Defina data_inicio e data_fim para ver a grade semanal.</p>
+        ) : (
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',minWidth:800}}>
+              <thead>
+                <tr style={{background:'#16213e'}}>
+                  <th style={{padding:8,textAlign:'left',color:'#aaa',fontSize:12,width:100}}>Turno</th>
+                  {dias.map(d => <th key={d} style={{padding:8,textAlign:'center',color:'#aaa',fontSize:11,minWidth:120}}>{formatDia(d)}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {turnos.map(turno => (
+                  <tr key={turno} style={{borderBottom:'1px solid #333'}}>
+                    <td style={{padding:8,color:'#e94560',fontWeight:'bold',fontSize:12}}>{turnoLabels[turno]}</td>
+                    {dias.map(dia => {
+                      const cellSlots = slots.filter(s => s.data === dia && s.turno === turno);
+                      return (
+                        <td key={dia} style={{padding:4,verticalAlign:'top',minHeight:60}}>
+                          {cellSlots.map(slot => (
+                            <div key={slot.id} style={{background:'#1a1a2e',padding:4,borderRadius:4,marginBottom:2,fontSize:11}}>
+                              <div style={{color:'#4ecca3'}}>{slot.preparacoes?.nome || 'Sem prep.'}</div>
+                              <div style={{display:'flex',gap:4,marginTop:2}}>
+                                <select value={slot.preparacao_id || ''} onChange={e => atualizarSlot(slot.id, 'preparacao_id', e.target.value || null)} style={{flex:1,padding:2,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:2,fontSize:10}}>
+                                  <option value="">-</option>
+                                  {preparacoesDisp.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
+                                </select>
+                                <button onClick={() => removerSlot(slot.id)} style={{padding:'0 4px',background:'#e94560',color:'#fff',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>x</button>
+                              </div>
+                              <input type="number" value={slot.pcp || 0} onChange={e => atualizarSlot(slot.id, 'pcp', parseFloat(e.target.value) || 0)} style={{width:'100%',padding:2,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:2,fontSize:10,marginTop:2}} placeholder="PCP" />
+                            </div>
+                          ))}
+                          <button onClick={() => adicionarSlot(dia, turno)} style={{width:'100%',padding:2,background:'#16213e',color:'#4ecca3',border:'1px dashed #333',borderRadius:2,fontSize:10,cursor:'pointer',marginTop:2}}>+</button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p style={{color:'#888',fontSize:11,marginTop:12}}>Total de itens: {slots.length} | Clique + para adicionar preparacao ao turno/dia</p>
+      </div>
+    );
+  }
+
+  // === FORM VIEW ===
+  if (showForm) {
+    return (
+      <div style={{padding:24}}>
+        <button onClick={() => { setShowForm(false); setEditId(null); setMsg(''); }} style={{marginBottom:16,padding:'6px 16px',background:'#555',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Voltar</button>
+        <h2 style={{color:'#e94560',marginBottom:16}}>{editId ? 'Editar Cardapio' : 'Novo Cardapio'}</h2>
+        {msg && <p style={{color: msg.includes('Erro') ? '#e94560' : '#4ecca3',marginBottom:12}}>{msg}</p>}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,maxWidth:600}}>
+          <div style={{gridColumn:'1/3'}}>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Nome do Cardapio *</label>
+            <input value={form.nome} onChange={e => setForm({...form, nome:e.target.value})} style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} placeholder="Ex: Semana 1 - Marco" />
+          </div>
+          <div>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Data Inicio</label>
+            <input type="date" value={form.data_inicio} onChange={e => setForm({...form, data_inicio:e.target.value})} style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+          </div>
+          <div>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Data Fim</label>
+            <input type="date" value={form.data_fim} onChange={e => setForm({...form, data_fim:e.target.value})} style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+          </div>
+          <div>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Comensais Planejados</label>
+            <input type="number" value={form.comensais_planejados} onChange={e => setForm({...form, comensais_planejados: parseInt(e.target.value) || 0})} style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+          </div>
+        </div>
+        <div style={{marginTop:16,display:'flex',gap:8}}>
+          <button onClick={salvarCardapio} disabled={saving || !form.nome} style={{padding:'10px 24px',background: !form.nome ? '#555' : '#e94560',color:'#fff',border:'none',borderRadius:4,cursor: !form.nome ? 'default' : 'pointer',fontWeight:'bold'}}>{saving ? 'Salvando...' : (editId ? 'Atualizar' : 'Criar Cardapio')}</button>
+          {editId && <button onClick={() => { const c = cardapios.find(x=>x.id===editId); if(c) abrirGrade(c); }} style={{padding:'10px 24px',background:'#0f3460',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Ver Grade</button>}
+        </div>
+      </div>
+    );
+  }
+
+  // === LIST VIEW ===
+  return (
+    <div style={{padding:24}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h2 style={{color:'#e94560',margin:0}}>Cardapios / Planejamento</h2>
+        <button onClick={novoCardapio} style={{padding:'8px 20px',background:'#e94560',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontWeight:'bold'}}>+ Novo Cardapio</button>
+      </div>
+      {loading ? <p style={{color:'#aaa'}}>Carregando...</p> : (
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead>
+            <tr style={{background:'#16213e'}}>
+              <th style={{padding:10,textAlign:'left',color:'#aaa',fontSize:12}}>Nome</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Periodo</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Comensais</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Itens</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Status</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cardapios.map(c => (
+              <tr key={c.id} style={{borderBottom:'1px solid #333'}}>
+                <td style={{padding:10,color:'#fff'}}>{c.nome || 'Sem nome'}</td>
+                <td style={{padding:10,textAlign:'center',color:'#ccc',fontSize:12}}>{c.data_inicio || '-'} a {c.data_fim || '-'}</td>
+                <td style={{padding:10,textAlign:'center',color:'#ccc'}}>{c.comensais_planejados}</td>
+                <td style={{padding:10,textAlign:'center',color:'#ccc'}}>{c.cardapio_slots?.length || 0}</td>
+                <td style={{padding:10,textAlign:'center'}}><span style={{padding:'2px 8px',borderRadius:4,fontSize:11,background: c.status === 'aprovado' ? '#4ecca3' : c.status === 'enviado' ? '#0f3460' : '#f0a500',color: c.status === 'aprovado' ? '#000' : '#fff'}}>{c.status}</span></td>
+                <td style={{padding:10,textAlign:'center'}}>
+                  <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                    <button onClick={() => abrirGrade(c)} style={{padding:'4px 10px',background:'#0f3460',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>Grade</button>
+                    <button onClick={() => editarCardapio(c)} style={{padding:'4px 10px',background:'#f0a500',color:'#000',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>Editar</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {!loading && cardapios.length === 0 && <p style={{color:'#888',textAlign:'center',padding:24}}>Nenhum cardapio encontrado.</p>}
+      <p style={{color:'#888',fontSize:12,marginTop:12}}>Total: {cardapios.length} cardapios</p>
+    </div>
+  );
+}
+
 function ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:'#e94560'}}>{title}</h2><p style={{color:'#aaa'}}>Modulo em construcao...</p></div>);}
 
 export default function Home() {
@@ -587,7 +834,7 @@ export default function Home() {
       case 'dashboard': return <ModDashboard empresaId={empresaId} />;
       case 'ingredientes': return <ModIngredientes empresaId={empresaId} />;
       case 'preparacoes': return <ModPreparacoes empresaId={empresaId} />;
-      case 'cardapios': return <ModPlaceholder title="Cardapios" />;
+      case 'cardapios': return <ModCardapios empresaId={empresaId} />;
       case 'ordens': return <ModPlaceholder title="Ordens de Producao" />;
       case 'compras': return <ModPlaceholder title="Compras" />;
       case 'estoque': return <ModPlaceholder title="Estoque" />;
