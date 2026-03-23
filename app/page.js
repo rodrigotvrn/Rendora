@@ -1,9 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '../lib/supabase';
-
-const supabase = createClient();
+import { supabase } from '../lib/supabase';
 
 /* ========== SIDEBAR ========== */
 function Sidebar({ activeModule, setActiveModule, perfil, onLogout }) {
