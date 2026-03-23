@@ -6,14 +6,14 @@ import { supabase } from '../lib/supabase';
 /* ========== SIDEBAR ========== */
 function Sidebar({ activeModule, setActiveModule, perfil, onLogout }) {
   const modules = [
-    { id: "dashboard", label: "Dashboard", icon: "Ã°ÂÂÂ" },
-    { id: "ingredientes", label: "Ingredientes", icon: "Ã°ÂÂÂ¾" },
-    { id: "preparacoes", label: "Preparacoes", icon: "Ã°ÂÂÂ³" },
-    { id: "cardapios", label: "Cardapios", icon: "Ã°ÂÂÂ" },
-    { id: "ordens", label: "Ordens Producao", icon: "Ã°ÂÂÂ" },
-    { id: "compras", label: "Compras", icon: "Ã°ÂÂÂ" },
-    { id: "estoque", label: "Estoque", icon: "Ã°ÂÂÂ¦" },
-    { id: "configuracoes", label: "Configuracoes", icon: "Ã¢ÂÂÃ¯Â¸Â" }
+    { id: "dashboard", label: "Dashboard", icon: "📊" },
+    { id: "ingredientes", label: "Ingredientes", icon: "🌾" },
+    { id: "preparacoes", label: "Preparacoes", icon: "🍳" },
+    { id: "cardapios", label: "Cardapios", icon: "📅" },
+    { id: "ordens", label: "Ordens Producao", icon: "📋" },
+    { id: "compras", label: "Compras", icon: "🛒" },
+    { id: "estoque", label: "Estoque", icon: "📦" },
+    { id: "configuracoes", label: "Configuracoes", icon: "⚙️" }
   ];
   return (
     <div style={{width:220,minHeight:'100vh',background:'#1a1a2e',color:'#fff',display:'flex',flexDirection:'column'}}>
@@ -175,36 +175,107 @@ function ModIngredientes({ empresaId }) {
 }
 
 function ModDashboard({ empresaId }) {
-  const [stats,setStats]=useState({ingredientes:0,preparacoes:0,cardapios:0});
-  useEffect(()=>{(async()=>{
-    const [i,p,c]=await Promise.all([
-      supabase.from("ingredientes").select("id",{count:"exact",head:true}).eq("empresa_id",empresaId).eq("ativo",true),
-      supabase.from("preparacoes").select("id",{count:"exact",head:true}).eq("empresa_id",empresaId),
-      supabase.from("cardapios").select("id",{count:"exact",head:true}).eq("empresa_id",empresaId),
+  const [stats, setStats] = useState({ ingredientes: 0, preparacoes: 0, cardapios: 0, ordens: 0, listas: 0 });
+  const [ordensRecentes, setOrdensRecentes] = useState([]);
+  const [alertasEstoque, setAlertasEstoque] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { carregarDados(); }, []);
+
+  async function carregarDados() {
+    setLoading(true);
+    const [ingRes, prepRes, cardRes, ordRes, listRes] = await Promise.all([
+      supabase.from('ingredientes').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaId).eq('ativo', true),
+      supabase.from('preparacoes').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaId).eq('ativo', true),
+      supabase.from('cardapios').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaId),
+      supabase.from('ordens_producao').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaId),
+      supabase.from('listas_compra').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaId)
     ]);
-    setStats({ingredientes:i.count||0,preparacoes:p.count||0,cardapios:c.count||0});
-  })();},[empresaId]);
+    setStats({
+      ingredientes: ingRes.count || 0,
+      preparacoes: prepRes.count || 0,
+      cardapios: cardRes.count || 0,
+      ordens: ordRes.count || 0,
+      listas: listRes.count || 0
+    });
+    const { data: ordens } = await supabase.from('ordens_producao').select('id, data, status').eq('empresa_id', empresaId).order('created_at', { ascending: false }).limit(5);
+    setOrdensRecentes(ordens || []);
+    const { data: estoques } = await supabase.from('estoque_atual').select('ingrediente_id, qtd_disponivel, ingredientes(nome, codigo)').eq('empresa_id', empresaId).lt('qtd_disponivel', 10).order('qtd_disponivel', { ascending: true }).limit(5);
+    setAlertasEstoque(estoques || []);
+    setLoading(false);
+  }
+
+  const cards = [
+    { label: 'Ingredientes', value: stats.ingredientes, color: '#3b82f6' },
+    { label: 'Preparacoes', value: stats.preparacoes, color: '#10b981' },
+    { label: 'Cardapios', value: stats.cardapios, color: '#f59e0b' },
+    { label: 'Ordens', value: stats.ordens, color: '#8b5cf6' },
+    { label: 'Listas Compra', value: stats.listas, color: '#ef4444' }
+  ];
+
+  if (loading) return <p>Carregando dashboard...</p>;
+
   return (
-    <div style={{padding:24}}>
-      <h2 style={{marginBottom:24,color:"#1a1a2e"}}>Dashboard</h2>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16}}>
-        {[{l:"Ingredientes Ativos",v:stats.ingredientes,c:"#4fc3f7"},{l:"Preparacoes",v:stats.preparacoes,c:"#81c784"},{l:"Cardapios",v:stats.cardapios,c:"#ffb74d"}].map(s=>(
-          <div key={s.l} style={{background:"#fff",borderRadius:12,padding:20,boxShadow:"0 1px 3px rgba(0,0,0,0.1)",borderLeft:"4px solid "+s.c}}>
-            <div style={{fontSize:28,fontWeight:700,color:"#1a1a2e"}}>{s.v}</div>
-            <div style={{fontSize:13,color:"#888",marginTop:4}}>{s.l}</div>
+    <div>
+      <h2 style={{ color: '#f59e0b', marginBottom: 20 }}>Dashboard</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 30 }}>
+        {cards.map(c => (
+          <div key={c.label} style={{ padding: 20, background: '#fff', borderRadius: 8, borderTop: '4px solid ' + c.color }}>
+            <div style={{ fontSize: 32, fontWeight: 700 }}>{c.value}</div>
+            <div style={{ fontSize: 14, color: '#6b7280' }}>{c.label}</div>
           </div>
         ))}
       </div>
-      <div style={{marginTop:32,background:"#fff",borderRadius:12,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.1)"}}>
-        <h3 style={{margin:"0 0 12px",color:"#1a1a2e"}}>Bem-vindo ao Rendora</h3>
-        <p style={{color:"#666",lineHeight:1.6}}>Plataforma de gestao operacional para Unidades de Alimentacao e Nutricao.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 8, padding: 20 }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Ordens Recentes</h3>
+          {ordensRecentes.length === 0 ? <p style={{ color: '#9ca3af' }}>Nenhuma ordem</p> :
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: 8, textAlign: 'left', fontSize: 13 }}>Data</th>
+                  <th style={{ padding: 8, textAlign: 'center', fontSize: 13 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordensRecentes.map(o => (
+                  <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: 8, fontSize: 14 }}>{o.data}</td>
+                    <td style={{ padding: 8, textAlign: 'center' }}>
+                      <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, background: o.status === 'confirmada' ? '#dcfce7' : o.status === 'executada' ? '#dbeafe' : '#fef3c7', color: o.status === 'confirmada' ? '#16a34a' : o.status === 'executada' ? '#2563eb' : '#d97706' }}>{o.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          }
+        </div>
+        <div style={{ background: '#fff', borderRadius: 8, padding: 20 }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alertas de Estoque (abaixo de 10)</h3>
+          {alertasEstoque.length === 0 ? <p style={{ color: '#9ca3af' }}>Nenhum alerta - estoque OK</p> :
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: 8, textAlign: 'left', fontSize: 13 }}>Ingrediente</th>
+                  <th style={{ padding: 8, textAlign: 'right', fontSize: 13 }}>Qtd</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alertasEstoque.map(e => (
+                  <tr key={e.ingrediente_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: 8, fontSize: 14 }}>{e.ingredientes ? e.ingredientes.nome : '-'}</td>
+                    <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: parseFloat(e.qtd_disponivel) < 5 ? '#dc2626' : '#f59e0b' }}>{parseFloat(e.qtd_disponivel).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          }
+        </div>
       </div>
     </div>
   );
 }
 
-
-/* ========== MOD PREPARACOES (Fichas Tecnicas) ========== */
 function ModPreparacoes({ empresaId }) {
   const [preparacoes, setPreparacoes] = useState([]);
   const [ingredientesDisponiveis, setIngredientesDisponiveis] = useState([]);
