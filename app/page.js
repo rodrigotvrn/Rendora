@@ -1,35 +1,42 @@
-"use client";
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "../lib/supabase";
-import { useRouter } from "next/navigation";
+'use client';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '../lib/supabase';
 
+const supabase = createClient();
+
+/* ========== SIDEBAR ========== */
 function Sidebar({ activeModule, setActiveModule, perfil, onLogout }) {
   const modules = [
-    { id: "dashboard", label: "Dashboard", icon: "D" },
-    { id: "ingredientes", label: "Ingredientes", icon: "I" },
-    { id: "preparacoes", label: "Preparacoes", icon: "P" },
-    { id: "cardapios", label: "Cardapios", icon: "C" },
-    { id: "ordens", label: "Ordens Producao", icon: "O" },
-    { id: "compras", label: "Compras", icon: "Co" },
-    { id: "estoque", label: "Estoque", icon: "E" },
-    { id: "configuracoes", label: "Configuracoes", icon: "Cf" },
+    { id: "dashboard", label: "Dashboard", icon: "📊" },
+    { id: "ingredientes", label: "Ingredientes", icon: "🌾" },
+    { id: "preparacoes", label: "Preparacoes", icon: "🍳" },
+    { id: "cardapios", label: "Cardapios", icon: "📅" },
+    { id: "ordens", label: "Ordens Producao", icon: "📋" },
+    { id: "compras", label: "Compras", icon: "🛒" },
+    { id: "estoque", label: "Estoque", icon: "📦" },
+    { id: "configuracoes", label: "Configuracoes", icon: "⚙️" }
   ];
   return (
-    <div style={{ width: 240, background: "#1a1a2e", color: "#fff", minHeight: "100vh", padding: "20px 0", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "0 20px 20px", borderBottom: "1px solid #333" }}>
-        <h2 style={{ margin: 0, fontSize: 22, color: "#4fc3f7" }}>Rendora</h2>
-        <p style={{ margin: "4px 0 0", fontSize: 12, color: "#888" }}>{perfil?.nome || ""}</p>
-        <p style={{ margin: 0, fontSize: 11, color: "#666" }}>{perfil?.empresas?.nome || ""}</p>
+    <div style={{width:220,minHeight:'100vh',background:'#1a1a2e',color:'#fff',display:'flex',flexDirection:'column'}}>
+      <div style={{padding:'20px 16px',borderBottom:'1px solid #333'}}>
+        <h2 style={{margin:0,fontSize:20,color:'#e94560'}}>Rendora</h2>
+        <p style={{margin:'4px 0 0',fontSize:11,color:'#aaa'}}>{perfil?.empresa_nome || ''}</p>
+        <p style={{margin:'2px 0 0',fontSize:11,color:'#888'}}>{perfil?.nome || ''}</p>
       </div>
-      <div style={{ flex: 1, paddingTop: 10 }}>
-        {modules.map((m) => (
-          <div key={m.id} onClick={() => setActiveModule(m.id)} style={{ padding: "12px 20px", cursor: "pointer", background: activeModule === m.id ? "#16213e" : "transparent", borderLeft: activeModule === m.id ? "3px solid #4fc3f7" : "3px solid transparent", fontSize: 14 }}>
-            {m.label}
+      <nav style={{flex:1,padding:'8px 0'}}>
+        {modules.map(m => (
+          <div key={m.id} onClick={() => setActiveModule(m.id)}
+            style={{padding:'10px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,
+              background: activeModule === m.id ? '#16213e' : 'transparent',
+              borderLeft: activeModule === m.id ? '3px solid #e94560' : '3px solid transparent',
+              color: activeModule === m.id ? '#fff' : '#aaa',fontSize:14}}>
+            <span>{m.icon}</span><span>{m.label}</span>
           </div>
         ))}
-      </div>
-      <div style={{ padding: "10px 20px", borderTop: "1px solid #333" }}>
-        <button onClick={onLogout} style={{ width: "100%", padding: "8px", background: "#e74c3c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>Sair</button>
+      </nav>
+      <div style={{padding:16,borderTop:'1px solid #333'}}>
+        <button onClick={onLogout} style={{width:'100%',padding:'8px',background:'#e94560',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Sair</button>
       </div>
     </div>
   );
@@ -198,38 +205,402 @@ function ModDashboard({ empresaId }) {
   );
 }
 
-function ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:"#1a1a2e"}}>{title}</h2><div style={{background:"#fff",borderRadius:12,padding:40,textAlign:"center",boxShadow:"0 1px 3px rgba(0,0,0,0.1)",marginTop:16}}><p style={{color:"#888",fontSize:16}}>Modulo em desenvolvimento</p></div></div>);}
 
-export default function Home() {
-  const [user,setUser]=useState(null);
-  const [perfil,setPerfil]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [activeModule,setActiveModule]=useState("dashboard");
-  const router=useRouter();
-  useEffect(()=>{(async()=>{
-    const {data:{session}}=await supabase.auth.getSession();
-    if(!session){router.push("/login");return;}
-    setUser(session.user);
-    const {data:p}=await supabase.from("perfis").select("*, empresas(id, nome)").eq("id",session.user.id).single();
-    if(p) setPerfil(p);
+/* ========== MOD PREPARACOES (Fichas Tecnicas) ========== */
+function ModPreparacoes({ empresaId }) {
+  const [preparacoes, setPreparacoes] = useState([]);
+  const [ingredientesDisponiveis, setIngredientesDisponiveis] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [showFicha, setShowFicha] = useState(null);
+  const [busca, setBusca] = useState('');
+  const [filtroSetor, setFiltroSetor] = useState('todos');
+  const [form, setForm] = useState({ nome:'', setor:'cozinha_producao', modo_preparo:'', observacoes:'', rendimento_porcoes:1 });
+  const [fichaItens, setFichaItens] = useState([]);
+  const [novoItem, setNovoItem] = useState({ ingrediente_id:'', pcl:0, fc:1, fcc:1, custo_provisorio:0 });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const setores = [
+    { value:'saladas', label:'Saladas' },
+    { value:'sucos', label:'Sucos' },
+    { value:'cozinha_producao', label:'Cozinha Producao' },
+    { value:'confeitaria', label:'Confeitaria' },
+    { value:'panificacao', label:'Panificacao' }
+  ];
+
+  const carregarPreparacoes = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('preparacoes')
+      .select('*, preparacao_itens(id, ingrediente_id, pcl, pcb, fc, fcc, pcp_padrao, custo_provisorio, ordem, ingredientes:ingrediente_id(nome, codigo, unidade_padrao))')
+      .eq('empresa_id', empresaId)
+      .eq('ativo', true)
+      .order('codigo', { ascending: true });
+    if (!error) setPreparacoes(data || []);
     setLoading(false);
-  })();},[router]);
-  const handleLogout=async()=>{await supabase.auth.signOut();router.push("/login");};
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f2f5"}}><div style={{textAlign:"center"}}><h2 style={{color:"#4fc3f7"}}>Rendora</h2><p style={{color:"#888"}}>Carregando...</p></div></div>;
-  const empresaId=perfil?.empresa_id;
-  if(!empresaId) return <div style={{padding:40,textAlign:"center"}}><p>Perfil nao encontrado.</p><button onClick={handleLogout}>Sair</button></div>;
-  const renderMod=()=>{
-    switch(activeModule){
-      case "dashboard": return <ModDashboard empresaId={empresaId}/>;
-      case "ingredientes": return <ModIngredientes empresaId={empresaId}/>;
-      case "preparacoes": return <ModPlaceholder title="Preparacoes (Fichas Tecnicas)"/>;
-      case "cardapios": return <ModPlaceholder title="Cardapios e Planejamento"/>;
-      case "ordens": return <ModPlaceholder title="Ordens de Producao"/>;
-      case "compras": return <ModPlaceholder title="Lista de Compras"/>;
-      case "estoque": return <ModPlaceholder title="Estoque"/>;
-      case "configuracoes": return <ModPlaceholder title="Configuracoes"/>;
-      default: return <ModDashboard empresaId={empresaId}/>;
+  }, [empresaId]);
+
+  const carregarIngredientes = useCallback(async () => {
+    const { data } = await supabase
+      .from('ingredientes')
+      .select('id, nome, codigo, unidade_padrao, grupo_id')
+      .eq('empresa_id', empresaId)
+      .eq('ativo', true)
+      .order('nome');
+    if (data) setIngredientesDisponiveis(data);
+  }, [empresaId]);
+
+  useEffect(() => { carregarPreparacoes(); carregarIngredientes(); }, [carregarPreparacoes, carregarIngredientes]);
+
+  const gerarCodigo = async () => {
+    const { data } = await supabase.from('preparacoes').select('codigo').eq('empresa_id', empresaId).order('codigo', { ascending: false }).limit(1);
+    if (data && data.length > 0) {
+      const last = data[0].codigo;
+      const num = parseInt(last.replace('PREP-','')) + 1;
+      return 'PREP-' + String(num).padStart(4,'0');
+    }
+    return 'PREP-0001';
+  };
+
+  const salvar = async () => {
+    setSaving(true); setMsg('');
+    try {
+      if (editId) {
+        const { error } = await supabase.from('preparacoes').update({
+          nome: form.nome, setor: form.setor, modo_preparo: form.modo_preparo,
+          observacoes: form.observacoes, rendimento_porcoes: form.rendimento_porcoes
+        }).eq('id', editId);
+        if (error) throw error;
+        setMsg('Preparacao atualizada!');
+      } else {
+        const codigo = await gerarCodigo();
+        const { data, error } = await supabase.from('preparacoes').insert({
+          empresa_id: empresaId, codigo, nome: form.nome, setor: form.setor,
+          modo_preparo: form.modo_preparo, observacoes: form.observacoes,
+          rendimento_porcoes: form.rendimento_porcoes, ativo: true
+        }).select().single();
+        if (error) throw error;
+        setMsg('Preparacao criada: ' + codigo);
+        setEditId(data.id);
+      }
+      carregarPreparacoes();
+    } catch(e) { setMsg('Erro: ' + e.message); }
+    setSaving(false);
+  };
+
+  const desativar = async (id) => {
+    await supabase.from('preparacoes').update({ ativo: false }).eq('id', id);
+    carregarPreparacoes();
+  };
+
+  // === FICHA TECNICA ITENS ===
+  const carregarItens = async (prepId) => {
+    const { data } = await supabase
+      .from('preparacao_itens')
+      .select('*, ingredientes:ingrediente_id(nome, codigo, unidade_padrao)')
+      .eq('preparacao_id', prepId)
+      .order('ordem');
+    setFichaItens(data || []);
+  };
+
+  const adicionarItem = async (prepId) => {
+    if (!novoItem.ingrediente_id) return;
+    const pcl = parseFloat(novoItem.pcl) || 0;
+    const fc = parseFloat(novoItem.fc) || 1;
+    const fcc = parseFloat(novoItem.fcc) || 1;
+    const pcb = pcl * fc;
+    const pcp_padrao = pcl * fcc;
+    const custo = parseFloat(novoItem.custo_provisorio) || 0;
+    const { error } = await supabase.from('preparacao_itens').insert({
+      preparacao_id: prepId, ingrediente_id: novoItem.ingrediente_id,
+      pcl, fc, fcc, pcb, pcp_padrao, custo_provisorio: custo,
+      ordem: fichaItens.length + 1
+    });
+    if (!error) {
+      carregarItens(prepId);
+      setNovoItem({ ingrediente_id:'', pcl:0, fc:1, fcc:1, custo_provisorio:0 });
     }
   };
-  return (<div style={{display:"flex",minHeight:"100vh",background:"#f0f2f5"}}><Sidebar activeModule={activeModule} setActiveModule={setActiveModule} perfil={perfil} onLogout={handleLogout}/><div style={{flex:1,overflow:"auto"}}>{renderMod()}</div></div>);
+
+  const removerItem = async (itemId, prepId) => {
+    await supabase.from('preparacao_itens').delete().eq('id', itemId);
+    carregarItens(prepId);
+  };
+
+  const abrirFicha = (prep) => {
+    setShowFicha(prep);
+    carregarItens(prep.id);
+  };
+
+  const abrirEdicao = (prep) => {
+    setForm({ nome: prep.nome, setor: prep.setor, modo_preparo: prep.modo_preparo || '',
+      observacoes: prep.observacoes || '', rendimento_porcoes: prep.rendimento_porcoes || 1 });
+    setEditId(prep.id);
+    setShowForm(true);
+    setShowFicha(null);
+  };
+
+  const novaPreparacao = () => {
+    setForm({ nome:'', setor:'cozinha_producao', modo_preparo:'', observacoes:'', rendimento_porcoes:1 });
+    setEditId(null);
+    setShowForm(true);
+    setShowFicha(null);
+    setMsg('');
+  };
+
+  const filtradas = preparacoes.filter(p => {
+    const matchBusca = p.nome.toLowerCase().includes(busca.toLowerCase()) || p.codigo.toLowerCase().includes(busca.toLowerCase());
+    const matchSetor = filtroSetor === 'todos' || p.setor === filtroSetor;
+    return matchBusca && matchSetor;
+  });
+
+  // === FICHA TECNICA VIEW ===
+  if (showFicha) {
+    const custoTotal = fichaItens.reduce((acc, item) => acc + ((parseFloat(item.custo_provisorio)||0) * (parseFloat(item.pcb)||0)), 0);
+    return (
+      <div style={{padding:24}}>
+        <button onClick={() => { setShowFicha(null); setFichaItens([]); }} style={{marginBottom:16,padding:'6px 16px',background:'#555',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Voltar</button>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <div>
+            <h2 style={{color:'#e94560',margin:0}}>{showFicha.codigo} - {showFicha.nome}</h2>
+            <p style={{color:'#aaa',margin:'4px 0'}}>Setor: {showFicha.setor} | Rendimento: {showFicha.rendimento_porcoes} porcoes</p>
+          </div>
+          <button onClick={() => abrirEdicao(showFicha)} style={{padding:'6px 16px',background:'#0f3460',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Editar</button>
+        </div>
+
+        {showFicha.modo_preparo && <div style={{background:'#1a1a2e',padding:12,borderRadius:8,marginBottom:16}}>
+          <strong style={{color:'#e94560'}}>Modo de Preparo:</strong>
+          <p style={{color:'#ccc',whiteSpace:'pre-wrap',margin:'8px 0 0'}}>{showFicha.modo_preparo}</p>
+        </div>}
+
+        <h3 style={{color:'#e94560',marginBottom:8}}>Ingredientes da Ficha</h3>
+        <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16}}>
+          <thead>
+            <tr style={{background:'#16213e'}}>
+              <th style={{padding:8,textAlign:'left',color:'#aaa',fontSize:12}}>Ingrediente</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>PCL (kg)</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>FC</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>FCc</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>PCB (kg)</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>PCP (kg)</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>Custo Prov.</th>
+              <th style={{padding:8,textAlign:'center',color:'#aaa',fontSize:12}}>Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fichaItens.map(item => (
+              <tr key={item.id} style={{borderBottom:'1px solid #333'}}>
+                <td style={{padding:8,color:'#fff'}}>{item.ingredientes?.codigo} - {item.ingredientes?.nome}</td>
+                <td style={{padding:8,textAlign:'center',color:'#ccc'}}>{parseFloat(item.pcl).toFixed(3)}</td>
+                <td style={{padding:8,textAlign:'center',color:'#ccc'}}>{parseFloat(item.fc).toFixed(2)}</td>
+                <td style={{padding:8,textAlign:'center',color:'#ccc'}}>{parseFloat(item.fcc).toFixed(2)}</td>
+                <td style={{padding:8,textAlign:'center',color:'#4ecca3'}}>{(parseFloat(item.pcl) * parseFloat(item.fc)).toFixed(3)}</td>
+                <td style={{padding:8,textAlign:'center',color:'#4ecca3'}}>{(parseFloat(item.pcl) * parseFloat(item.fcc)).toFixed(3)}</td>
+                <td style={{padding:8,textAlign:'center',color:'#f0a500'}}>{item.custo_provisorio > 0 ? 'R$ ' + parseFloat(item.custo_provisorio).toFixed(2) : '-'}</td>
+                <td style={{padding:8,textAlign:'center'}}>
+                  <button onClick={() => removerItem(item.id, showFicha.id)} style={{padding:'4px 8px',background:'#e94560',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:11}}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {custoTotal > 0 && <p style={{color:'#f0a500',marginBottom:16}}>Custo Total Provisorio: R$ {custoTotal.toFixed(2)} <span style={{background:'#f0a500',color:'#000',padding:'2px 6px',borderRadius:4,fontSize:10,marginLeft:8}}>Campo Provisorio</span></p>}
+
+        <div style={{background:'#16213e',padding:16,borderRadius:8}}>
+          <h4 style={{color:'#e94560',margin:'0 0 12px'}}>Adicionar Ingrediente</h4>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
+            <div style={{flex:2,minWidth:200}}>
+              <label style={{color:'#aaa',fontSize:11,display:'block',marginBottom:4}}>Ingrediente</label>
+              <select value={novoItem.ingrediente_id} onChange={e => setNovoItem({...novoItem, ingrediente_id: e.target.value})}
+                style={{width:'100%',padding:8,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:4}}>
+                <option value="">Selecione...</option>
+                {ingredientesDisponiveis.map(ing => (
+                  <option key={ing.id} value={ing.id}>{ing.codigo} - {ing.nome} ({ing.unidade_padrao})</option>
+                ))}
+              </select>
+            </div>
+            <div style={{flex:1,minWidth:80}}>
+              <label style={{color:'#aaa',fontSize:11,display:'block',marginBottom:4}}>PCL (kg)</label>
+              <input type="number" step="0.001" value={novoItem.pcl} onChange={e => setNovoItem({...novoItem, pcl: e.target.value})}
+                style={{width:'100%',padding:8,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+            </div>
+            <div style={{flex:1,minWidth:80}}>
+              <label style={{color:'#aaa',fontSize:11,display:'block',marginBottom:4}}>FC</label>
+              <input type="number" step="0.01" value={novoItem.fc} onChange={e => setNovoItem({...novoItem, fc: e.target.value})}
+                style={{width:'100%',padding:8,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+            </div>
+            <div style={{flex:1,minWidth:80}}>
+              <label style={{color:'#aaa',fontSize:11,display:'block',marginBottom:4}}>FCc</label>
+              <input type="number" step="0.01" value={novoItem.fcc} onChange={e => setNovoItem({...novoItem, fcc: e.target.value})}
+                style={{width:'100%',padding:8,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+            </div>
+            <div style={{flex:1,minWidth:80}}>
+              <label style={{color:'#aaa',fontSize:11,display:'block',marginBottom:4}}>Custo Prov. (R$)</label>
+              <input type="number" step="0.01" value={novoItem.custo_provisorio} onChange={e => setNovoItem({...novoItem, custo_provisorio: e.target.value})}
+                style={{width:'100%',padding:8,background:'#0f3460',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+            </div>
+            <button onClick={() => adicionarItem(showFicha.id)} style={{padding:'8px 16px',background:'#4ecca3',color:'#000',border:'none',borderRadius:4,cursor:'pointer',fontWeight:'bold'}}>+ Adicionar</button>
+          </div>
+          <p style={{color:'#888',fontSize:11,marginTop:8}}>PCB = PCL x FC | PCP = PCL x FCc | QBT = Comensais x PCB</p>
+        </div>
+      </div>
+    );
+  }
+
+  // === FORM VIEW ===
+  if (showForm) {
+    return (
+      <div style={{padding:24}}>
+        <button onClick={() => { setShowForm(false); setEditId(null); setMsg(''); }} style={{marginBottom:16,padding:'6px 16px',background:'#555',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Voltar</button>
+        <h2 style={{color:'#e94560',marginBottom:16}}>{editId ? 'Editar Preparacao' : 'Nova Preparacao'}</h2>
+        {msg && <p style={{color: msg.includes('Erro') ? '#e94560' : '#4ecca3',marginBottom:12}}>{msg}</p>}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,maxWidth:600}}>
+          <div style={{gridColumn:'1/3'}}>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Nome da Preparacao *</label>
+            <input value={form.nome} onChange={e => setForm({...form, nome:e.target.value})}
+              style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} placeholder="Ex: Arroz branco" />
+          </div>
+          <div>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Setor *</label>
+            <select value={form.setor} onChange={e => setForm({...form, setor:e.target.value})}
+              style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}}>
+              {setores.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Rendimento (porcoes)</label>
+            <input type="number" value={form.rendimento_porcoes} onChange={e => setForm({...form, rendimento_porcoes: parseInt(e.target.value) || 1})}
+              style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+          </div>
+          <div style={{gridColumn:'1/3'}}>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Modo de Preparo</label>
+            <textarea value={form.modo_preparo} onChange={e => setForm({...form, modo_preparo:e.target.value})} rows={4}
+              style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4,resize:'vertical'}} placeholder="Descreva o modo de preparo..." />
+          </div>
+          <div style={{gridColumn:'1/3'}}>
+            <label style={{color:'#aaa',fontSize:12,display:'block',marginBottom:4}}>Observacoes</label>
+            <textarea value={form.observacoes} onChange={e => setForm({...form, observacoes:e.target.value})} rows={2}
+              style={{width:'100%',padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4,resize:'vertical'}} />
+          </div>
+        </div>
+        <div style={{marginTop:16,display:'flex',gap:8}}>
+          <button onClick={salvar} disabled={saving || !form.nome}
+            style={{padding:'10px 24px',background: !form.nome ? '#555' : '#e94560',color:'#fff',border:'none',borderRadius:4,cursor: !form.nome ? 'default' : 'pointer',fontWeight:'bold'}}>
+            {saving ? 'Salvando...' : (editId ? 'Atualizar' : 'Criar Preparacao')}
+          </button>
+          {editId && <button onClick={() => abrirFicha({...form, id: editId, codigo: preparacoes.find(p=>p.id===editId)?.codigo || ''})}
+            style={{padding:'10px 24px',background:'#0f3460',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>Ver Ficha Tecnica</button>}
+        </div>
+      </div>
+    );
+  }
+
+  // === LIST VIEW (default) ===
+  return (
+    <div style={{padding:24}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h2 style={{color:'#e94560',margin:0}}>Preparacoes / Fichas Tecnicas</h2>
+        <button onClick={novaPreparacao} style={{padding:'8px 20px',background:'#e94560',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontWeight:'bold'}}>+ Nova Preparacao</button>
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome ou codigo..."
+          style={{flex:1,padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}} />
+        <select value={filtroSetor} onChange={e => setFiltroSetor(e.target.value)}
+          style={{padding:10,background:'#16213e',color:'#fff',border:'1px solid #333',borderRadius:4}}>
+          <option value="todos">Todos os Setores</option>
+          {setores.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+      {loading ? <p style={{color:'#aaa'}}>Carregando...</p> : (
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead>
+            <tr style={{background:'#16213e'}}>
+              <th style={{padding:10,textAlign:'left',color:'#aaa',fontSize:12}}>Codigo</th>
+              <th style={{padding:10,textAlign:'left',color:'#aaa',fontSize:12}}>Nome</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Setor</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Ingredientes</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Rendimento</th>
+              <th style={{padding:10,textAlign:'center',color:'#aaa',fontSize:12}}>Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtradas.map(prep => (
+              <tr key={prep.id} style={{borderBottom:'1px solid #333'}}>
+                <td style={{padding:10,color:'#4ecca3',fontFamily:'monospace'}}>{prep.codigo}</td>
+                <td style={{padding:10,color:'#fff'}}>{prep.nome}</td>
+                <td style={{padding:10,textAlign:'center',color:'#ccc'}}>{prep.setor}</td>
+                <td style={{padding:10,textAlign:'center',color:'#ccc'}}>{prep.preparacao_itens?.length || 0}</td>
+                <td style={{padding:10,textAlign:'center',color:'#ccc'}}>{prep.rendimento_porcoes || 1} porc.</td>
+                <td style={{padding:10,textAlign:'center'}}>
+                  <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                    <button onClick={() => abrirFicha(prep)} style={{padding:'4px 10px',background:'#0f3460',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>Ficha</button>
+                    <button onClick={() => abrirEdicao(prep)} style={{padding:'4px 10px',background:'#f0a500',color:'#000',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>Editar</button>
+                    <button onClick={() => desativar(prep.id)} style={{padding:'4px 10px',background:'#e94560',color:'#fff',border:'none',borderRadius:4,cursor:'pointer',fontSize:12}}>Desativar</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {!loading && filtradas.length === 0 && <p style={{color:'#888',textAlign:'center',padding:24}}>Nenhuma preparacao encontrada.</p>}
+      <p style={{color:'#888',fontSize:12,marginTop:12}}>Total: {filtradas.length} preparacoes</p>
+    </div>
+  );
+}
+
+function ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:'#e94560'}}>{title}</h2><p style={{color:'#aaa'}}>Modulo em construcao...</p></div>);}
+
+export default function Home() {
+  const router = useRouter();
+  const [perfil, setPerfil] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeModule, setActiveModule] = useState('dashboard');
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push('/login'); return; }
+      const { data: perfilData } = await supabase
+        .from('perfis')
+        .select('*, empresas:empresa_id(nome)')
+        .eq('id', session.user.id)
+        .single();
+      if (!perfilData) { setLoading(false); return; }
+      setPerfil({ ...perfilData, empresa_nome: perfilData.empresas?.nome || '' });
+      setLoading(false);
+    })();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
+  if (loading) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh',background:'#0a0a23',color:'#fff'}}><p>Carregando...</p></div>;
+  if (!perfil) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh',background:'#0a0a23',color:'#fff'}}><p>Perfil nao encontrado. <a href="/login" style={{color:'#e94560'}}>Fazer login</a></p></div>;
+
+  const empresaId = perfil.empresa_id;
+  const renderModule = () => {
+    switch(activeModule) {
+      case 'dashboard': return <ModDashboard empresaId={empresaId} />;
+      case 'ingredientes': return <ModIngredientes empresaId={empresaId} />;
+      case 'preparacoes': return <ModPreparacoes empresaId={empresaId} />;
+      case 'cardapios': return <ModPlaceholder title="Cardapios" />;
+      case 'ordens': return <ModPlaceholder title="Ordens de Producao" />;
+      case 'compras': return <ModPlaceholder title="Compras" />;
+      case 'estoque': return <ModPlaceholder title="Estoque" />;
+      case 'configuracoes': return <ModPlaceholder title="Configuracoes" />;
+      default: return <ModDashboard empresaId={empresaId} />;
+    }
+  };
+
+  return (
+    <div style={{display:'flex',minHeight:'100vh',background:'#0a0a23',color:'#fff'}}>
+      <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} perfil={perfil} onLogout={handleLogout} />
+      <main style={{flex:1,overflow:'auto'}}>{renderModule()}</main>
+    </div>
+  );
 }
