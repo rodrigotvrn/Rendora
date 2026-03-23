@@ -957,6 +957,172 @@ function ModOrdensProducao({ empresaId }) {
   );
 }
 
+
+/* ========== ESTOQUE ========== */
+function ModEstoque({ empresaId }) {
+  const [tab, setTab] = useState("saldos");
+  const [saldos, setSaldos] = useState([]);
+  const [entradas, setEntradas] = useState([]);
+  const [ingredientes, setIngredientes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ ingrediente_id:"", qtd:"", custo_unitario:"", fornecedor:"", nota_fiscal:"", data:"" });
+  const [msg, setMsg] = useState("");
+  useEffect(() => { if (empresaId) carregarDados(); }, [empresaId]);
+  const carregarDados = async () => {
+    setLoading(true);
+    const { data: sal } = await supabase.from("estoque_atual").select("*, ingredientes:ingrediente_id(nome, codigo, unidade)").eq("empresa_id", empresaId).order("ingredientes(nome)");
+    setSaldos(sal || []);
+    const { data: ent } = await supabase.from("entradas_estoque").select("*, ingredientes:ingrediente_id(nome, codigo, unidade)").eq("empresa_id", empresaId).order("data", { ascending: false }).limit(100);
+    setEntradas(ent || []);
+    const { data: ing } = await supabase.from("ingredientes").select("id, nome, codigo, unidade").eq("empresa_id", empresaId).eq("ativo", true).order("nome");
+    setIngredientes(ing || []);
+    setLoading(false);
+  };
+  const registrarEntrada = async () => {
+    if (!form.ingrediente_id || !form.qtd || Number(form.qtd) <= 0) { setMsg("Preencha ingrediente e quantidade"); return; }
+    setMsg("");
+    const qtd = Number(form.qtd);
+    const custoUnit = Number(form.custo_unitario) || 0;
+    const { error } = await supabase.from("entradas_estoque").insert({
+      empresa_id: empresaId, ingrediente_id: form.ingrediente_id,
+      qtd, custo_unitario: custoUnit, fornecedor: form.fornecedor || null,
+      nota_fiscal: form.nota_fiscal || null, data: form.data || new Date().toISOString().split("T")[0]
+    });
+    if (error) { setMsg("Erro: " + error.message); return; }
+    const { data: atual } = await supabase.from("estoque_atual")
+      .select("*").eq("empresa_id", empresaId).eq("ingrediente_id", form.ingrediente_id).single();
+    if (atual) {
+      const oldQtd = Number(atual.qtd_disponivel) || 0;
+      const oldCMP = Number(atual.custo_medio_ponderado) || 0;
+      const newQtd = oldQtd + qtd;
+      const newCMP = newQtd > 0 ? ((oldQtd * oldCMP) + (qtd * custoUnit)) / newQtd : custoUnit;
+      await supabase.from("estoque_atual").update({ qtd_disponivel: newQtd, custo_medio_ponderado: Math.round(newCMP * 100) / 100, atualizado_em: new Date().toISOString() })
+        .eq("id", atual.id);
+    } else {
+      await supabase.from("estoque_atual").insert({
+        empresa_id: empresaId, ingrediente_id: form.ingrediente_id,
+        qtd_disponivel: qtd, custo_medio_ponderado: custoUnit
+      });
+    }
+    setMsg("Entrada registrada! CMP atualizado.");
+    setForm({ ingrediente_id:"", qtd:"", custo_unitario:"", fornecedor:"", nota_fiscal:"", data:"" });
+    setShowForm(false);
+    carregarDados();
+  };
+  if (loading) return (<div style={{padding:40,color:"#888"}}>Carregando estoque...</div>);
+  if (showForm) {
+    return (
+      <div style={{padding:20}}>
+        <button onClick={() => setShowForm(false)} style={{padding:"8px 16px",background:"#4361ee",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",marginBottom:16}}>Voltar</button>
+        <h2 style={{color:"#e94560",margin:"0 0 16px"}}>Nova Entrada de Estoque</h2>
+        {msg && <p style={{color:msg.startsWith("Erro")?"#e94560":"#4ecca3",fontSize:13,marginBottom:8}}>{msg}</p>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,maxWidth:600}}>
+          <div style={{gridColumn:"1/3"}}>
+            <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Ingrediente *</label>
+            <select value={form.ingrediente_id} onChange={e => setForm({...form, ingrediente_id:e.target.value})} style={{width:"100%",padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8}}>
+              <option value="">Selecione...</option>
+              {ingredientes.map(i => (<option key={i.id} value={i.id}>{i.codigo} - {i.nome} ({i.unidade})</option>))}
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Quantidade *</label>
+            <input type="number" value={form.qtd} onChange={e => setForm({...form, qtd:e.target.value})} step="0.01" placeholder="0.00" style={{width:"100%",padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8,boxSizing:"border-box"}} />
+          </div>
+          <div>
+            <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Custo Unitario (R$)</label>
+            <input type="number" value={form.custo_unitario} onChange={e => setForm({...form, custo_unitario:e.target.value})} step="0.01" placeholder="0.00" style={{width:"100%",padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8,boxSizing:"border-box"}} />
+          </div>
+          <div>
+            <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Data</label>
+            <input type="date" value={form.data} onChange={e => setForm({...form, data:e.target.value})} style={{width:"100%",padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8,boxSizing:"border-box"}} />
+          </div>
+          <div>
+            <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Fornecedor</label>
+            <input type="text" value={form.fornecedor} onChange={e => setForm({...form, fornecedor:e.target.value})} placeholder="Nome do fornecedor" style={{width:"100%",padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8,boxSizing:"border-box"}} />
+          </div>
+          <div>
+            <label style={{fontSize:13,color:"#666",display:"block",marginBottom:4}}>Nota Fiscal</label>
+            <input type="text" value={form.nota_fiscal} onChange={e => setForm({...form, nota_fiscal:e.target.value})} placeholder="Numero NF" style={{width:"100%",padding:10,background:"#16213e",color:"#fff",border:"1px solid #333",borderRadius:8,boxSizing:"border-box"}} />
+          </div>
+        </div>
+        <button onClick={registrarEntrada} style={{marginTop:16,padding:"10px 24px",background:"#e94560",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:"bold"}}>Registrar Entrada</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{padding:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 style={{color:"#e94560",margin:0}}>Estoque</h2>
+        <button onClick={() => { setShowForm(true); setMsg(""); }} style={{padding:"10px 20px",background:"#e94560",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:"bold"}}>+ Nova Entrada</button>
+      </div>
+      {msg && <p style={{color:"#4ecca3",fontSize:13,marginBottom:8}}>{msg}</p>}
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <button onClick={() => setTab("saldos")} style={{padding:"8px 16px",background:tab==="saldos"?"#4361ee":"#16213e",color:"#fff",border:"1px solid #333",borderRadius:6,cursor:"pointer"}}>Saldos Atuais</button>
+        <button onClick={() => setTab("entradas")} style={{padding:"8px 16px",background:tab==="entradas"?"#4361ee":"#16213e",color:"#fff",border:"1px solid #333",borderRadius:6,cursor:"pointer"}}>Entradas</button>
+      </div>
+      {tab === "saldos" && (
+        <div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{background:"#16213e"}}>
+              <th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>Ingrediente</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Qtd Disponivel</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Unidade</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>CMP (R$)</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Valor Total</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Atualizado</th>
+            </tr></thead>
+            <tbody>
+              {saldos.length === 0 ? (<tr><td colSpan={6} style={{textAlign:"center",padding:20,color:"#888"}}>Nenhum saldo de estoque.</td></tr>) :
+                saldos.map(s => (
+                  <tr key={s.id} style={{borderBottom:"1px solid #1a1a2e"}}>
+                    <td style={{padding:8}}>{s.ingredientes?.codigo} - {s.ingredientes?.nome}</td>
+                    <td style={{padding:8,textAlign:"center",fontWeight:"bold",color: Number(s.qtd_disponivel) <= 0 ? "#e94560" : "#4ecca3"}}>{Number(s.qtd_disponivel).toFixed(2)}</td>
+                    <td style={{padding:8,textAlign:"center"}}>{s.ingredientes?.unidade || "-"}</td>
+                    <td style={{padding:8,textAlign:"center"}}>R$ {Number(s.custo_medio_ponderado).toFixed(2)}</td>
+                    <td style={{padding:8,textAlign:"center"}}>R$ {(Number(s.qtd_disponivel) * Number(s.custo_medio_ponderado)).toFixed(2)}</td>
+                    <td style={{padding:8,textAlign:"center",fontSize:11,color:"#888"}}>{s.atualizado_em ? new Date(s.atualizado_em).toLocaleDateString("pt-BR") : "-"}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          <p style={{color:"#888",fontSize:11,marginTop:8}}>Total: {saldos.length} itens em estoque</p>
+        </div>
+      )}
+      {tab === "entradas" && (
+        <div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{background:"#16213e"}}>
+              <th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>Data</th>
+              <th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>Ingrediente</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Qtd</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Custo Unit</th>
+              <th style={{padding:8,textAlign:"center",color:"#4ecca3"}}>Total</th>
+              <th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>Fornecedor</th>
+              <th style={{padding:8,textAlign:"left",color:"#4ecca3"}}>NF</th>
+            </tr></thead>
+            <tbody>
+              {entradas.length === 0 ? (<tr><td colSpan={7} style={{textAlign:"center",padding:20,color:"#888"}}>Nenhuma entrada registrada.</td></tr>) :
+                entradas.map(e => (
+                  <tr key={e.id} style={{borderBottom:"1px solid #1a1a2e"}}>
+                    <td style={{padding:8}}>{e.data}</td>
+                    <td style={{padding:8}}>{e.ingredientes?.codigo} - {e.ingredientes?.nome}</td>
+                    <td style={{padding:8,textAlign:"center"}}>{Number(e.qtd).toFixed(2)}</td>
+                    <td style={{padding:8,textAlign:"center"}}>R$ {Number(e.custo_unitario).toFixed(2)}</td>
+                    <td style={{padding:8,textAlign:"center",fontWeight:"bold"}}>R$ {(Number(e.qtd) * Number(e.custo_unitario)).toFixed(2)}</td>
+                    <td style={{padding:8}}>{e.fornecedor || "-"}</td>
+                    <td style={{padding:8}}>{e.nota_fiscal || "-"}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          <p style={{color:"#888",fontSize:11,marginTop:8}}>Total: {entradas.length} entradas</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:'#e94560'}}>{title}</h2><p style={{color:'#aaa'}}>Modulo em construcao...</p></div>);}
 
 export default function Home() {
@@ -997,7 +1163,7 @@ export default function Home() {
       case 'cardapios': return <ModCardapios empresaId={empresaId} />;
       case 'ordens': return <ModOrdensProducao empresaId={empresaId} />;
       case 'compras': return <ModPlaceholder title="Compras" />;
-      case 'estoque': return <ModPlaceholder title="Estoque" />;
+      case 'estoque': return <ModEstoque empresaId={empresaId} />;
       case 'configuracoes': return <ModPlaceholder title="Configuracoes" />;
       default: return <ModDashboard empresaId={empresaId} />;
     }
