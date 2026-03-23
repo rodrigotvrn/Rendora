@@ -6,14 +6,14 @@ import { supabase } from '../lib/supabase';
 /* ========== SIDEBAR ========== */
 function Sidebar({ activeModule, setActiveModule, perfil, onLogout }) {
   const modules = [
-    { id: "dashboard", label: "Dashboard", icon: "ð" },
-    { id: "ingredientes", label: "Ingredientes", icon: "ð¾" },
-    { id: "preparacoes", label: "Preparacoes", icon: "ð³" },
-    { id: "cardapios", label: "Cardapios", icon: "ð" },
-    { id: "ordens", label: "Ordens Producao", icon: "ð" },
-    { id: "compras", label: "Compras", icon: "ð" },
-    { id: "estoque", label: "Estoque", icon: "ð¦" },
-    { id: "configuracoes", label: "Configuracoes", icon: "âï¸" }
+    { id: "dashboard", label: "Dashboard", icon: "Ã°ÂÂÂ" },
+    { id: "ingredientes", label: "Ingredientes", icon: "Ã°ÂÂÂ¾" },
+    { id: "preparacoes", label: "Preparacoes", icon: "Ã°ÂÂÂ³" },
+    { id: "cardapios", label: "Cardapios", icon: "Ã°ÂÂÂ" },
+    { id: "ordens", label: "Ordens Producao", icon: "Ã°ÂÂÂ" },
+    { id: "compras", label: "Compras", icon: "Ã°ÂÂÂ" },
+    { id: "estoque", label: "Estoque", icon: "Ã°ÂÂÂ¦" },
+    { id: "configuracoes", label: "Configuracoes", icon: "Ã¢ÂÂÃ¯Â¸Â" }
   ];
   return (
     <div style={{width:220,minHeight:'100vh',background:'#1a1a2e',color:'#fff',display:'flex',flexDirection:'column'}}>
@@ -1124,16 +1124,16 @@ function ModEstoque({ empresaId }) {
 }
 
 function ModCompras({ empresaId }) {
-  const [listas, setListas] = React.useState([]);
-  const [view, setView] = React.useState('list');
-  const [listaAtual, setListaAtual] = React.useState(null);
-  const [itens, setItens] = React.useState([]);
-  const [ordensConfirmadas, setOrdensConfirmadas] = React.useState([]);
-  const [ordemSelecionada, setOrdemSelecionada] = React.useState('');
-  const [loading, setLoading] = React.useState(true);
-  const [msg, setMsg] = React.useState('');
+  const [listas, setListas] = useState([]);
+  const [view, setView] = useState('list');
+  const [listaAtual, setListaAtual] = useState(null);
+  const [itens, setItens] = useState([]);
+  const [ordensConfirmadas, setOrdensConfirmadas] = useState([]);
+  const [ordemSelecionada, setOrdemSelecionada] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState('');
 
-  React.useEffect(() => { carregarListas(); carregarOrdensConfirmadas(); }, []);
+  useEffect(() => { carregarListas(); carregarOrdensConfirmadas(); }, []);
 
   async function carregarListas() {
     setLoading(true);
@@ -1152,7 +1152,8 @@ function ModCompras({ empresaId }) {
     setMsg('Gerando lista...');
     const { data: ordemItens } = await supabase.from('ordens_producao_itens').select('preparacao_id, qbt').eq('ordem_id', ordemSelecionada);
     if (!ordemItens || ordemItens.length === 0) { setMsg('Ordem sem itens'); return; }
-    const { data: prepItens } = await supabase.from('preparacao_itens').select('preparacao_id, ingrediente_id, fc').in('preparacao_id', ordemItens.map(o => o.preparacao_id));
+    const prepIds = [...new Set(ordemItens.map(o => o.preparacao_id))];
+    const { data: prepItens } = await supabase.from('preparacao_itens').select('preparacao_id, ingrediente_id, fc').in('preparacao_id', prepIds);
     const ingredMap = {};
     for (const oi of ordemItens) {
       const fichaItens = (prepItens || []).filter(pi => pi.preparacao_id === oi.preparacao_id);
@@ -1206,79 +1207,94 @@ function ModCompras({ empresaId }) {
   if (view === 'detalhes' && listaAtual) {
     const pendentes = itens.filter(i => i.status === 'pendente').length;
     const comprados = itens.filter(i => i.status === 'comprado').length;
-    return React.createElement('div', null,
-      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-        React.createElement('div', null,
-          React.createElement('button', { onClick: () => { setView('list'); setListaAtual(null); }, style: { background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 14, padding: 0, marginBottom: 8 } }, String.fromCharCode(8592) + ' Voltar'),
-          React.createElement('h2', { style: { margin: 0 } }, listaAtual.nome || 'Lista de Compras')
-        ),
-        React.createElement('div', { style: { display: 'flex', gap: 8 } },
-          listaAtual.status === 'gerada' && React.createElement('button', { onClick: () => atualizarStatusLista(listaAtual.id, 'enviada'), style: { padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' } }, 'Enviar Lista'),
-          listaAtual.status === 'enviada' && React.createElement('button', { onClick: () => atualizarStatusLista(listaAtual.id, 'parcial'), style: { padding: '8px 16px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' } }, 'Marcar Parcial'),
-          (listaAtual.status === 'enviada' || listaAtual.status === 'parcial') && React.createElement('button', { onClick: () => atualizarStatusLista(listaAtual.id, 'concluida'), style: { padding: '8px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' } }, 'Concluir')
-        )
-      ),
-      React.createElement('div', { style: { display: 'flex', gap: 16, marginBottom: 20 } },
-        React.createElement('div', { style: { padding: '12px 20px', background: '#fef3c7', borderRadius: 8 } }, React.createElement('strong', null, pendentes), ' pendentes'),
-        React.createElement('div', { style: { padding: '12px 20px', background: '#dcfce7', borderRadius: 8 } }, React.createElement('strong', null, comprados), ' comprados'),
-        React.createElement('div', { style: { padding: '12px 20px', background: '#e0e7ff', borderRadius: 8 } }, React.createElement('strong', null, itens.length), ' total')
-      ),
-      React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
-        React.createElement('thead', null,
-          React.createElement('tr', { style: { background: '#f1f5f9' } },
-            React.createElement('th', { style: { padding: 10, textAlign: 'left', borderBottom: '2px solid #e2e8f0' } }, 'Codigo'),
-            React.createElement('th', { style: { padding: 10, textAlign: 'left', borderBottom: '2px solid #e2e8f0' } }, 'Ingrediente'),
-            React.createElement('th', { style: { padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' } }, 'Necessario'),
-            React.createElement('th', { style: { padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' } }, 'Estoque'),
-            React.createElement('th', { style: { padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' } }, 'Comprar'),
-            React.createElement('th', { style: { padding: 10, textAlign: 'center', borderBottom: '2px solid #e2e8f0' } }, 'Unid'),
-            React.createElement('th', { style: { padding: 10, textAlign: 'center', borderBottom: '2px solid #e2e8f0' } }, 'Status')
-          )
-        ),
-        React.createElement('tbody', null,
-          itens.map(item => React.createElement('tr', { key: item.id, style: { borderBottom: '1px solid #e2e8f0' } },
-            React.createElement('td', { style: { padding: 10, fontFamily: 'monospace', fontSize: 13 } }, item.ingredientes ? item.ingredientes.codigo : '-'),
-            React.createElement('td', { style: { padding: 10 } }, item.ingredientes ? item.ingredientes.nome : item.ingrediente_id),
-            React.createElement('td', { style: { padding: 10, textAlign: 'right', fontWeight: 600 } }, parseFloat(item.qtd_necessaria).toFixed(3)),
-            React.createElement('td', { style: { padding: 10, textAlign: 'right', color: '#6b7280' } }, parseFloat(item.qtd_estoque).toFixed(3)),
-            React.createElement('td', { style: { padding: 10, textAlign: 'right', fontWeight: 700, color: parseFloat(item.qtd_comprar) > 0 ? '#dc2626' : '#16a34a' } }, parseFloat(item.qtd_comprar).toFixed(3)),
-            React.createElement('td', { style: { padding: 10, textAlign: 'center', fontSize: 13 } }, item.ingredientes ? item.ingredientes.unidade : '-'),
-            React.createElement('td', { style: { padding: 10, textAlign: 'center' } },
-              React.createElement('select', { value: item.status, onChange: (e) => atualizarStatusItem(item.id, e.target.value), style: { padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: 13 } },
-                React.createElement('option', { value: 'pendente' }, 'Pendente'),
-                React.createElement('option', { value: 'parcial' }, 'Parcial'),
-                React.createElement('option', { value: 'comprado' }, 'Comprado')
-              )
-            )
-          ))
-        )
-      )
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <button onClick={() => { setView('list'); setListaAtual(null); }} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 14, padding: 0, marginBottom: 8 }}>\u2190 Voltar</button>
+            <h2 style={{ margin: 0 }}>{listaAtual.nome || 'Lista de Compras'}</h2>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {listaAtual.status === 'gerada' && <button onClick={() => atualizarStatusLista(listaAtual.id, 'enviada')} style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Enviar Lista</button>}
+            {listaAtual.status === 'enviada' && <button onClick={() => atualizarStatusLista(listaAtual.id, 'parcial')} style={{ padding: '8px 16px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Marcar Parcial</button>}
+            {(listaAtual.status === 'enviada' || listaAtual.status === 'parcial') && <button onClick={() => atualizarStatusLista(listaAtual.id, 'concluida')} style={{ padding: '8px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Concluir</button>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+          <div style={{ padding: '12px 20px', background: '#fef3c7', borderRadius: 8 }}><strong>{pendentes}</strong> pendentes</div>
+          <div style={{ padding: '12px 20px', background: '#dcfce7', borderRadius: 8 }}><strong>{comprados}</strong> comprados</div>
+          <div style={{ padding: '12px 20px', background: '#e0e7ff', borderRadius: 8 }}><strong>{itens.length}</strong> total</div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f1f5f9' }}>
+              <th style={{ padding: 10, textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>Codigo</th>
+              <th style={{ padding: 10, textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>Ingrediente</th>
+              <th style={{ padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' }}>Necessario</th>
+              <th style={{ padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' }}>Estoque</th>
+              <th style={{ padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' }}>Comprar</th>
+              <th style={{ padding: 10, textAlign: 'center', borderBottom: '2px solid #e2e8f0' }}>Unid</th>
+              <th style={{ padding: 10, textAlign: 'center', borderBottom: '2px solid #e2e8f0' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {itens.map(item => (
+              <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <td style={{ padding: 10, fontFamily: 'monospace', fontSize: 13 }}>{item.ingredientes ? item.ingredientes.codigo : '-'}</td>
+                <td style={{ padding: 10 }}>{item.ingredientes ? item.ingredientes.nome : item.ingrediente_id}</td>
+                <td style={{ padding: 10, textAlign: 'right', fontWeight: 600 }}>{parseFloat(item.qtd_necessaria).toFixed(3)}</td>
+                <td style={{ padding: 10, textAlign: 'right', color: '#6b7280' }}>{parseFloat(item.qtd_estoque).toFixed(3)}</td>
+                <td style={{ padding: 10, textAlign: 'right', fontWeight: 700, color: parseFloat(item.qtd_comprar) > 0 ? '#dc2626' : '#16a34a' }}>{parseFloat(item.qtd_comprar).toFixed(3)}</td>
+                <td style={{ padding: 10, textAlign: 'center', fontSize: 13 }}>{item.ingredientes ? item.ingredientes.unidade : '-'}</td>
+                <td style={{ padding: 10, textAlign: 'center' }}>
+                  <select value={item.status} onChange={(e) => atualizarStatusItem(item.id, e.target.value)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: 13 }}>
+                    <option value="pendente">Pendente</option>
+                    <option value="parcial">Parcial</option>
+                    <option value="comprado">Comprado</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
-  return React.createElement('div', null,
-    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      React.createElement('h2', { style: { margin: 0 } }, 'Listas de Compras'),
-      React.createElement('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-        React.createElement('select', { value: ordemSelecionada, onChange: (e) => setOrdemSelecionada(e.target.value), style: { padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14 } },
-          React.createElement('option', { value: '' }, 'Selecione uma ordem...'),
-          ordensConfirmadas.map(o => React.createElement('option', { key: o.id, value: o.id }, 'Ordem ' + o.data + ' (' + o.status + ')'))
-        ),
-        React.createElement('button', { onClick: gerarLista, style: { padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 } }, '+ Gerar Lista')
-      )
-    ),
-    msg && React.createElement('div', { style: { padding: 12, background: msg.includes('Erro') ? '#fef2f2' : '#f0fdf4', borderRadius: 8, marginBottom: 16, color: msg.includes('Erro') ? '#dc2626' : '#16a34a' } }, msg),
-    loading ? React.createElement('p', null, 'Carregando...') :
-    listas.length === 0 ? React.createElement('div', { style: { textAlign: 'center', padding: 40, color: '#9ca3af' } }, React.createElement('p', { style: { fontSize: 48 } }, String.fromCharCode(128722)), React.createElement('p', null, 'Nenhuma lista de compras gerada'), React.createElement('p', { style: { fontSize: 14 } }, 'Selecione uma ordem confirmada e clique em Gerar Lista')) :
-    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
-      listas.map(lista => React.createElement('div', { key: lista.id, onClick: () => abrirDetalhes(lista), style: { padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        React.createElement('div', null,
-          React.createElement('h3', { style: { margin: '0 0 4px 0', fontSize: 16 } }, lista.nome || 'Lista de Compras'),
-          React.createElement('p', { style: { margin: 0, fontSize: 13, color: '#6b7280' } }, 'Gerada em: ' + new Date(lista.gerada_em).toLocaleDateString('pt-BR'))
-        ),
-        React.createElement('span', { style: { padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600, background: lista.status === 'concluida' ? '#dcfce7' : lista.status === 'enviada' ? '#dbeafe' : lista.status === 'parcial' ? '#fef3c7' : '#f1f5f9', color: lista.status === 'concluida' ? '#16a34a' : lista.status === 'enviada' ? '#2563eb' : lista.status === 'parcial' ? '#d97706' : '#64748b' } }, lista.status)
-      ))
-    )
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ margin: 0 }}>Listas de Compras</h2>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select value={ordemSelecionada} onChange={(e) => setOrdemSelecionada(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14 }}>
+            <option value="">Selecione uma ordem...</option>
+            {ordensConfirmadas.map(o => <option key={o.id} value={o.id}>{'Ordem ' + o.data + ' (' + o.status + ')'}</option>)}
+          </select>
+          <button onClick={gerarLista} style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>+ Gerar Lista</button>
+        </div>
+      </div>
+      {msg && <div style={{ padding: 12, background: msg.includes('Erro') ? '#fef2f2' : '#f0fdf4', borderRadius: 8, marginBottom: 16, color: msg.includes('Erro') ? '#dc2626' : '#16a34a' }}>{msg}</div>}
+      {loading ? <p>Carregando...</p> :
+       listas.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
+          <p style={{ fontSize: 48 }}>\ud83d\uded2</p>
+          <p>Nenhuma lista de compras gerada</p>
+          <p style={{ fontSize: 14 }}>Selecione uma ordem confirmada e clique em Gerar Lista</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {listas.map(lista => (
+            <div key={lista.id} onClick={() => abrirDetalhes(lista)} style={{ padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: 16 }}>{lista.nome || 'Lista de Compras'}</h3>
+                <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>{'Gerada em: ' + new Date(lista.gerada_em).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600, background: lista.status === 'concluida' ? '#dcfce7' : lista.status === 'enviada' ? '#dbeafe' : lista.status === 'parcial' ? '#fef3c7' : '#f1f5f9', color: lista.status === 'concluida' ? '#16a34a' : lista.status === 'enviada' ? '#2563eb' : lista.status === 'parcial' ? '#d97706' : '#64748b' }}>{lista.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
