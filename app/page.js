@@ -6,14 +6,14 @@ import { supabase } from '../lib/supabase';
 /* ========== SIDEBAR ========== */
 function Sidebar({ activeModule, setActiveModule, perfil, onLogout }) {
   const modules = [
-    { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "ingredientes", label: "Ingredientes", icon: "🌾" },
-    { id: "preparacoes", label: "Preparacoes", icon: "🍳" },
-    { id: "cardapios", label: "Cardapios", icon: "📅" },
-    { id: "ordens", label: "Ordens Producao", icon: "📋" },
-    { id: "compras", label: "Compras", icon: "🛒" },
-    { id: "estoque", label: "Estoque", icon: "📦" },
-    { id: "configuracoes", label: "Configuracoes", icon: "⚙️" }
+    { id: "dashboard", label: "Dashboard", icon: "ð" },
+    { id: "ingredientes", label: "Ingredientes", icon: "ð¾" },
+    { id: "preparacoes", label: "Preparacoes", icon: "ð³" },
+    { id: "cardapios", label: "Cardapios", icon: "ð" },
+    { id: "ordens", label: "Ordens Producao", icon: "ð" },
+    { id: "compras", label: "Compras", icon: "ð" },
+    { id: "estoque", label: "Estoque", icon: "ð¦" },
+    { id: "configuracoes", label: "Configuracoes", icon: "âï¸" }
   ];
   return (
     <div style={{width:220,minHeight:'100vh',background:'#1a1a2e',color:'#fff',display:'flex',flexDirection:'column'}}>
@@ -1123,6 +1123,165 @@ function ModEstoque({ empresaId }) {
   );
 }
 
+function ModCompras({ empresaId }) {
+  const [listas, setListas] = React.useState([]);
+  const [view, setView] = React.useState('list');
+  const [listaAtual, setListaAtual] = React.useState(null);
+  const [itens, setItens] = React.useState([]);
+  const [ordensConfirmadas, setOrdensConfirmadas] = React.useState([]);
+  const [ordemSelecionada, setOrdemSelecionada] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [msg, setMsg] = React.useState('');
+
+  React.useEffect(() => { carregarListas(); carregarOrdensConfirmadas(); }, []);
+
+  async function carregarListas() {
+    setLoading(true);
+    const { data } = await supabase.from('listas_compra').select('*').eq('empresa_id', empresaId).order('gerada_em', { ascending: false });
+    setListas(data || []);
+    setLoading(false);
+  }
+
+  async function carregarOrdensConfirmadas() {
+    const { data } = await supabase.from('ordens_producao').select('id, data, status, cardapio_id').eq('empresa_id', empresaId).eq('status', 'confirmada');
+    setOrdensConfirmadas(data || []);
+  }
+
+  async function gerarLista() {
+    if (!ordemSelecionada) { setMsg('Selecione uma ordem de producao'); return; }
+    setMsg('Gerando lista...');
+    const { data: ordemItens } = await supabase.from('ordens_producao_itens').select('preparacao_id, qbt').eq('ordem_id', ordemSelecionada);
+    if (!ordemItens || ordemItens.length === 0) { setMsg('Ordem sem itens'); return; }
+    const { data: prepItens } = await supabase.from('preparacao_itens').select('preparacao_id, ingrediente_id, fc').in('preparacao_id', ordemItens.map(o => o.preparacao_id));
+    const ingredMap = {};
+    for (const oi of ordemItens) {
+      const fichaItens = (prepItens || []).filter(pi => pi.preparacao_id === oi.preparacao_id);
+      for (const fi of fichaItens) {
+        const qbt = parseFloat(oi.qbt) || 0;
+        const fc = parseFloat(fi.fc) || 1;
+        const qtdBruta = qbt * fc;
+        if (!ingredMap[fi.ingrediente_id]) ingredMap[fi.ingrediente_id] = 0;
+        ingredMap[fi.ingrediente_id] += qtdBruta;
+      }
+    }
+    const ingredIds = Object.keys(ingredMap);
+    if (ingredIds.length === 0) { setMsg('Nenhum ingrediente encontrado nas fichas tecnicas'); return; }
+    const { data: estoques } = await supabase.from('estoque_atual').select('ingrediente_id, qtd_disponivel').eq('empresa_id', empresaId).in('ingrediente_id', ingredIds);
+    const estoqueMap = {};
+    (estoques || []).forEach(e => { estoqueMap[e.ingrediente_id] = parseFloat(e.qtd_disponivel) || 0; });
+    const ordemInfo = ordensConfirmadas.find(o => o.id === ordemSelecionada);
+    const { data: novaLista, error: errLista } = await supabase.from('listas_compra').insert({ empresa_id: empresaId, nome: 'Lista - Ordem ' + (ordemInfo ? ordemInfo.data : ''), status: 'gerada', ordem_id: ordemSelecionada }).select().single();
+    if (errLista) { setMsg('Erro: ' + errLista.message); return; }
+    const itensInsert = ingredIds.map(ingId => {
+      const qtdNec = Math.round(ingredMap[ingId] * 1000) / 1000;
+      const qtdEst = estoqueMap[ingId] || 0;
+      const qtdComp = Math.max(0, Math.round((qtdNec - qtdEst) * 1000) / 1000);
+      return { lista_id: novaLista.id, ingrediente_id: ingId, qtd_necessaria: qtdNec, qtd_estoque: qtdEst, qtd_comprar: qtdComp, status: qtdComp <= 0 ? 'comprado' : 'pendente' };
+    });
+    await supabase.from('listas_compra_itens').insert(itensInsert);
+    setMsg('Lista gerada com ' + itensInsert.length + ' ingredientes!');
+    carregarListas();
+  }
+
+  async function abrirDetalhes(lista) {
+    setListaAtual(lista);
+    setView('detalhes');
+    const { data: listaItens } = await supabase.from('listas_compra_itens').select('*, ingredientes(nome, codigo, unidade)').eq('lista_id', lista.id);
+    setItens(listaItens || []);
+  }
+
+  async function atualizarStatusItem(itemId, novoStatus) {
+    await supabase.from('listas_compra_itens').update({ status: novoStatus }).eq('id', itemId);
+    const updated = itens.map(i => i.id === itemId ? { ...i, status: novoStatus } : i);
+    setItens(updated);
+  }
+
+  async function atualizarStatusLista(listaId, novoStatus) {
+    await supabase.from('listas_compra').update({ status: novoStatus }).eq('id', listaId);
+    setMsg('Status atualizado para ' + novoStatus);
+    carregarListas();
+    if (listaAtual && listaAtual.id === listaId) setListaAtual({ ...listaAtual, status: novoStatus });
+  }
+
+  if (view === 'detalhes' && listaAtual) {
+    const pendentes = itens.filter(i => i.status === 'pendente').length;
+    const comprados = itens.filter(i => i.status === 'comprado').length;
+    return React.createElement('div', null,
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
+        React.createElement('div', null,
+          React.createElement('button', { onClick: () => { setView('list'); setListaAtual(null); }, style: { background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 14, padding: 0, marginBottom: 8 } }, String.fromCharCode(8592) + ' Voltar'),
+          React.createElement('h2', { style: { margin: 0 } }, listaAtual.nome || 'Lista de Compras')
+        ),
+        React.createElement('div', { style: { display: 'flex', gap: 8 } },
+          listaAtual.status === 'gerada' && React.createElement('button', { onClick: () => atualizarStatusLista(listaAtual.id, 'enviada'), style: { padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' } }, 'Enviar Lista'),
+          listaAtual.status === 'enviada' && React.createElement('button', { onClick: () => atualizarStatusLista(listaAtual.id, 'parcial'), style: { padding: '8px 16px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' } }, 'Marcar Parcial'),
+          (listaAtual.status === 'enviada' || listaAtual.status === 'parcial') && React.createElement('button', { onClick: () => atualizarStatusLista(listaAtual.id, 'concluida'), style: { padding: '8px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' } }, 'Concluir')
+        )
+      ),
+      React.createElement('div', { style: { display: 'flex', gap: 16, marginBottom: 20 } },
+        React.createElement('div', { style: { padding: '12px 20px', background: '#fef3c7', borderRadius: 8 } }, React.createElement('strong', null, pendentes), ' pendentes'),
+        React.createElement('div', { style: { padding: '12px 20px', background: '#dcfce7', borderRadius: 8 } }, React.createElement('strong', null, comprados), ' comprados'),
+        React.createElement('div', { style: { padding: '12px 20px', background: '#e0e7ff', borderRadius: 8 } }, React.createElement('strong', null, itens.length), ' total')
+      ),
+      React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
+        React.createElement('thead', null,
+          React.createElement('tr', { style: { background: '#f1f5f9' } },
+            React.createElement('th', { style: { padding: 10, textAlign: 'left', borderBottom: '2px solid #e2e8f0' } }, 'Codigo'),
+            React.createElement('th', { style: { padding: 10, textAlign: 'left', borderBottom: '2px solid #e2e8f0' } }, 'Ingrediente'),
+            React.createElement('th', { style: { padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' } }, 'Necessario'),
+            React.createElement('th', { style: { padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' } }, 'Estoque'),
+            React.createElement('th', { style: { padding: 10, textAlign: 'right', borderBottom: '2px solid #e2e8f0' } }, 'Comprar'),
+            React.createElement('th', { style: { padding: 10, textAlign: 'center', borderBottom: '2px solid #e2e8f0' } }, 'Unid'),
+            React.createElement('th', { style: { padding: 10, textAlign: 'center', borderBottom: '2px solid #e2e8f0' } }, 'Status')
+          )
+        ),
+        React.createElement('tbody', null,
+          itens.map(item => React.createElement('tr', { key: item.id, style: { borderBottom: '1px solid #e2e8f0' } },
+            React.createElement('td', { style: { padding: 10, fontFamily: 'monospace', fontSize: 13 } }, item.ingredientes ? item.ingredientes.codigo : '-'),
+            React.createElement('td', { style: { padding: 10 } }, item.ingredientes ? item.ingredientes.nome : item.ingrediente_id),
+            React.createElement('td', { style: { padding: 10, textAlign: 'right', fontWeight: 600 } }, parseFloat(item.qtd_necessaria).toFixed(3)),
+            React.createElement('td', { style: { padding: 10, textAlign: 'right', color: '#6b7280' } }, parseFloat(item.qtd_estoque).toFixed(3)),
+            React.createElement('td', { style: { padding: 10, textAlign: 'right', fontWeight: 700, color: parseFloat(item.qtd_comprar) > 0 ? '#dc2626' : '#16a34a' } }, parseFloat(item.qtd_comprar).toFixed(3)),
+            React.createElement('td', { style: { padding: 10, textAlign: 'center', fontSize: 13 } }, item.ingredientes ? item.ingredientes.unidade : '-'),
+            React.createElement('td', { style: { padding: 10, textAlign: 'center' } },
+              React.createElement('select', { value: item.status, onChange: (e) => atualizarStatusItem(item.id, e.target.value), style: { padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: 13 } },
+                React.createElement('option', { value: 'pendente' }, 'Pendente'),
+                React.createElement('option', { value: 'parcial' }, 'Parcial'),
+                React.createElement('option', { value: 'comprado' }, 'Comprado')
+              )
+            )
+          ))
+        )
+      )
+    );
+  }
+
+  return React.createElement('div', null,
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
+      React.createElement('h2', { style: { margin: 0 } }, 'Listas de Compras'),
+      React.createElement('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+        React.createElement('select', { value: ordemSelecionada, onChange: (e) => setOrdemSelecionada(e.target.value), style: { padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14 } },
+          React.createElement('option', { value: '' }, 'Selecione uma ordem...'),
+          ordensConfirmadas.map(o => React.createElement('option', { key: o.id, value: o.id }, 'Ordem ' + o.data + ' (' + o.status + ')'))
+        ),
+        React.createElement('button', { onClick: gerarLista, style: { padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 } }, '+ Gerar Lista')
+      )
+    ),
+    msg && React.createElement('div', { style: { padding: 12, background: msg.includes('Erro') ? '#fef2f2' : '#f0fdf4', borderRadius: 8, marginBottom: 16, color: msg.includes('Erro') ? '#dc2626' : '#16a34a' } }, msg),
+    loading ? React.createElement('p', null, 'Carregando...') :
+    listas.length === 0 ? React.createElement('div', { style: { textAlign: 'center', padding: 40, color: '#9ca3af' } }, React.createElement('p', { style: { fontSize: 48 } }, String.fromCharCode(128722)), React.createElement('p', null, 'Nenhuma lista de compras gerada'), React.createElement('p', { style: { fontSize: 14 } }, 'Selecione uma ordem confirmada e clique em Gerar Lista')) :
+    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+      listas.map(lista => React.createElement('div', { key: lista.id, onClick: () => abrirDetalhes(lista), style: { padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        React.createElement('div', null,
+          React.createElement('h3', { style: { margin: '0 0 4px 0', fontSize: 16 } }, lista.nome || 'Lista de Compras'),
+          React.createElement('p', { style: { margin: 0, fontSize: 13, color: '#6b7280' } }, 'Gerada em: ' + new Date(lista.gerada_em).toLocaleDateString('pt-BR'))
+        ),
+        React.createElement('span', { style: { padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600, background: lista.status === 'concluida' ? '#dcfce7' : lista.status === 'enviada' ? '#dbeafe' : lista.status === 'parcial' ? '#fef3c7' : '#f1f5f9', color: lista.status === 'concluida' ? '#16a34a' : lista.status === 'enviada' ? '#2563eb' : lista.status === 'parcial' ? '#d97706' : '#64748b' } }, lista.status)
+      ))
+    )
+  );
+}
+
 function ModPlaceholder({title}){return(<div style={{padding:24}}><h2 style={{color:'#e94560'}}>{title}</h2><p style={{color:'#aaa'}}>Modulo em construcao...</p></div>);}
 
 export default function Home() {
@@ -1162,7 +1321,7 @@ export default function Home() {
       case 'preparacoes': return <ModPreparacoes empresaId={empresaId} />;
       case 'cardapios': return <ModCardapios empresaId={empresaId} />;
       case 'ordens': return <ModOrdensProducao empresaId={empresaId} />;
-      case 'compras': return <ModPlaceholder title="Compras" />;
+      case 'compras': return <ModCompras empresaId={empresaId} />;
       case 'estoque': return <ModEstoque empresaId={empresaId} />;
       case 'configuracoes': return <ModPlaceholder title="Configuracoes" />;
       default: return <ModDashboard empresaId={empresaId} />;
